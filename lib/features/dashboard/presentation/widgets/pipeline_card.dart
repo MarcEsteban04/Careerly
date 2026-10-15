@@ -62,7 +62,7 @@ class PipelineCard extends StatelessWidget {
             child: SizedBox(
               height: 10,
               child: active == 0
-                  ? ColoredBox(color: colorScheme.surfaceContainerHighest)
+                  ? ColoredBox(color: colorScheme.outlineVariant)
                   : Row(
                       children: [
                         for (final stage in _stages)
