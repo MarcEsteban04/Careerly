@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_spacing.dart';
+import '../../data/remembered_account_store.dart';
 
 /// Shows the remembered account with a way to switch to a different email.
 class AccountChip extends StatelessWidget {
   const AccountChip({
     super.key,
-    required this.email,
+    required this.account,
     required this.onChange,
     this.enabled = true,
   });
 
-  final String email;
+  final RememberedAccount account;
   final VoidCallback onChange;
   final bool enabled;
 
@@ -19,6 +20,8 @@ class AccountChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final name = account.name;
+    final initial = (name ?? account.email).characters.first.toUpperCase();
 
     return Container(
       padding: const EdgeInsets.fromLTRB(
@@ -34,10 +37,10 @@ class AccountChip extends StatelessWidget {
       child: Row(
         children: [
           CircleAvatar(
-            radius: 18,
+            radius: 20,
             backgroundColor: colorScheme.primary.withValues(alpha: 0.14),
             child: Text(
-              email.characters.first.toUpperCase(),
+              initial,
               style: theme.textTheme.titleMedium?.copyWith(
                 color: colorScheme.primary,
               ),
@@ -45,13 +48,28 @@ class AccountChip extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text(
-              email,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (name != null)
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                Text(
+                  account.email,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: name == null
+                      ? theme.textTheme.bodyLarge
+                          ?.copyWith(fontWeight: FontWeight.w500)
+                      : theme.textTheme.bodyMedium
+                          ?.copyWith(color: colorScheme.onSurfaceVariant),
+                ),
+              ],
             ),
           ),
           TextButton(

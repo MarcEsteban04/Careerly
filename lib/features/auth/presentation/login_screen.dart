@@ -2,90 +2,89 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/form_error_banner.dart';
+import '../../../core/widgets/form_banner.dart';
 import '../../../core/widgets/labeled_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/shake_effect.dart';
 import '../data/auth_error_message.dart';
 import '../data/auth_repository.dart';
-import '../data/last_email_store.dart';
+import '../data/remembered_account_store.dart';
+import 'signup_screen.dart';
 import 'widgets/account_chip.dart';
-import 'widgets/login_hero.dart';
+import 'widgets/auth_scaffold.dart';
 
 class LoginScreen extends StatefulWidget {
   LoginScreen({
     super.key,
     required this.authRepository,
-    LastEmailStore? lastEmailStore,
-  }) : lastEmailStore = lastEmailStore ?? LastEmailStore();
+    RememberedAccountStore? accountStore,
+  }) : accountStore = accountStore ?? RememberedAccountStore();
 
   final AuthRepository authRepository;
-  final LastEmailStore lastEmailStore;
+  final RememberedAccountStore accountStore;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen>
-    with SingleTickerProviderStateMixin {
-  static const _wideBreakpoint = 840.0;
-  static const _panelRadius = 32.0;
-
+class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _shakeKey = GlobalKey<ShakeEffectState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _passwordFocus = FocusNode();
 
-  late final _intro = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  );
-
-  String? _rememberedEmail;
+  RememberedAccount? _account;
   bool _obscurePassword = true;
   bool _isSubmitting = false;
   String? _errorMessage;
+  String? _infoMessage;
 
   @override
   void initState() {
     super.initState();
-    _loadRememberedEmail();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _intro.value = 1;
-    } else if (_intro.isDismissed) {
-      _intro.forward();
-    }
+    _loadRememberedAccount();
   }
 
   @override
   void dispose() {
-    _intro.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _passwordFocus.dispose();
     super.dispose();
   }
 
-  Future<void> _loadRememberedEmail() async {
-    final email = await widget.lastEmailStore.read();
-    if (!mounted || email == null || email.isEmpty) return;
+  Future<void> _loadRememberedAccount() async {
+    final account = await widget.accountStore.read();
+    if (!mounted || account == null) return;
     setState(() {
-      _rememberedEmail = email;
-      _emailController.text = email;
+      _account = account;
+      _emailController.text = account.email;
     });
   }
 
-  void _forgetRememberedEmail() {
+  void _forgetAccount() {
     setState(() {
-      _rememberedEmail = null;
+      _account = null;
       _emailController.clear();
       _errorMessage = null;
+    });
+  }
+
+  Future<void> _openSignup() async {
+    final confirmEmail = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => SignupScreen(authRepository: widget.authRepository),
+      ),
+    );
+    if (!mounted || confirmEmail == null) return;
+    // Account created but waiting on email confirmation.
+    setState(() {
+      _account = null;
+      _emailController.text = confirmEmail;
+      _passwordController.clear();
+      _errorMessage = null;
+      _infoMessage = 'Account created. Confirm your email, then sign in.';
     });
   }
 
@@ -100,6 +99,7 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() {
       _isSubmitting = true;
       _errorMessage = null;
+      _infoMessage = null;
     });
 
     final email = _emailController.text.trim();
@@ -109,7 +109,12 @@ class _LoginScreenState extends State<LoginScreen>
         password: _passwordController.text,
       );
       TextInput.finishAutofillContext();
-      await widget.lastEmailStore.save(email);
+      await widget.accountStore.save(
+        RememberedAccount(
+          email: email,
+          name: widget.authRepository.currentUserName,
+        ),
+      );
     } catch (error) {
       if (!mounted) return;
       HapticFeedback.mediumImpact();
@@ -120,15 +125,23 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  void _clearError() {
-    if (_errorMessage != null) setState(() => _errorMessage = null);
+  void _clearMessages() {
+    if (_errorMessage != null || _infoMessage != null) {
+      setState(() {
+        _errorMessage = null;
+        _infoMessage = null;
+      });
+    }
   }
 
-  static String _greeting(DateTime now) {
+  static String _greeting(DateTime now, String? firstName) {
     final hour = now.hour;
-    if (hour >= 5 && hour < 12) return 'Good morning';
-    if (hour >= 12 && hour < 18) return 'Good afternoon';
-    return 'Good evening';
+    final base = hour >= 5 && hour < 12
+        ? 'Good morning'
+        : hour >= 12 && hour < 18
+            ? 'Good afternoon'
+            : 'Good evening';
+    return firstName == null ? base : '$base, $firstName';
   }
 
   static String? _validateEmail(String? value) {
@@ -143,202 +156,119 @@ class _LoginScreenState extends State<LoginScreen>
   static String? _validatePassword(String? value) =>
       (value ?? '').isEmpty ? 'Enter your password' : null;
 
-  /// Fades and lifts a child in during the intro, between [begin] and [end].
-  Widget _reveal(double begin, double end, Widget child) {
-    final curve = CurvedAnimation(
-      parent: _intro,
-      curve: Interval(begin, end, curve: Curves.easeOutCubic),
-    );
-    return FadeTransition(
-      opacity: curve,
-      child: SlideTransition(
-        position: Tween(begin: const Offset(0, 0.12), end: Offset.zero)
-            .animate(curve),
-        child: child,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
-      child: Scaffold(
-        // Matches the panel so it appears to run to the bottom edge.
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        body: LayoutBuilder(
-          builder: (context, constraints) =>
-              constraints.maxWidth >= _wideBreakpoint
-                  ? _buildWideLayout()
-                  : _buildStackedLayout(),
-        ),
-      ),
+    return AuthScaffold(
+      heroHeightFactor: 0.4,
+      builder: (context, reveal) => _buildForm(reveal),
     );
   }
 
-  /// Hero on top, form panel overlapping its bottom edge. The scaffold shares
-  /// the panel's color, so the panel appears to run to the bottom of the
-  /// screen however tall it is, and everything scrolls when space is tight
-  /// (small phones, keyboard open).
-  Widget _buildStackedLayout() {
-    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
-
-    return SingleChildScrollView(
-      physics: const ClampingScrollPhysics(),
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      child: Column(
-        children: [
-          _reveal(
-            0,
-            0.6,
-            LoginHero(
-              compact: keyboardOpen,
-              bottomInset: _panelRadius,
-              minHeight: keyboardOpen
-                  ? 0
-                  : MediaQuery.sizeOf(context).height * 0.4 + _panelRadius,
-            ),
-          ),
-          Transform.translate(
-            offset: const Offset(0, -_panelRadius),
-            child: _reveal(
-              0.2,
-              1,
-              _Panel(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(_panelRadius),
-                ),
-                child: _buildForm(),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWideLayout() {
-    return Row(
-      children: [
-        Expanded(child: _reveal(0, 0.6, const SizedBox.expand(child: LoginHero()))),
-        SizedBox(
-          width: 520,
-          child: _reveal(
-            0.2,
-            1,
-            _Panel(
-              borderRadius: const BorderRadius.horizontal(
-                left: Radius.circular(_panelRadius),
-              ),
-              child: Center(child: SingleChildScrollView(child: _buildForm())),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildForm() {
+  Widget _buildForm(AuthReveal reveal) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
-    final rememberedEmail = _rememberedEmail;
+    final account = _account;
+    final message = _errorMessage ?? _infoMessage;
 
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: AutofillGroup(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _reveal(
-                  0.35,
-                  0.85,
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _greeting(DateTime.now()),
-                        style: theme.textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        rememberedEmail == null
-                            ? 'Sign in to continue to your workspace.'
-                            : 'Welcome back. Enter your password to continue.',
-                        style: theme.textTheme.bodyLarge?.copyWith(color: muted),
-                      ),
-                    ],
+    return AutofillGroup(
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            reveal(
+              0.35,
+              0.85,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _greeting(DateTime.now(), account?.firstName),
+                    style: theme.textTheme.headlineMedium,
                   ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                _reveal(
-                  0.45,
-                  0.95,
-                  ShakeEffect(
-                    key: _shakeKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 220),
-                          child: rememberedEmail != null
-                              ? AccountChip(
-                                  key: const ValueKey('account'),
-                                  email: rememberedEmail,
-                                  enabled: !_isSubmitting,
-                                  onChange: _forgetRememberedEmail,
-                                )
-                              : _buildEmailField(),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        _buildPasswordField(),
-                      ],
-                    ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    account == null
+                        ? 'Sign in to continue to your workspace.'
+                        : 'Welcome back. Enter your password to continue.',
+                    style: theme.textTheme.bodyLarge?.copyWith(color: muted),
                   ),
-                ),
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOut,
-                  child: _errorMessage == null
-                      ? const SizedBox(width: double.infinity)
-                      : Padding(
-                          padding: const EdgeInsets.only(top: AppSpacing.md),
-                          child: FormErrorBanner(message: _errorMessage!),
-                        ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                _reveal(
-                  0.55,
-                  1,
-                  PrimaryButton(
-                    label: 'Sign in',
-                    icon: Icons.arrow_forward_rounded,
-                    isLoading: _isSubmitting,
-                    onPressed: _submit,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                _reveal(
-                  0.65,
-                  1,
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.lock_outline_rounded, size: 15, color: muted),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Private workspace',
-                        style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+            const SizedBox(height: AppSpacing.lg),
+            reveal(
+              0.45,
+              0.95,
+              ShakeEffect(
+                key: _shakeKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      child: account != null
+                          ? AccountChip(
+                              key: const ValueKey('account'),
+                              account: account,
+                              enabled: !_isSubmitting,
+                              onChange: _forgetAccount,
+                            )
+                          : _buildEmailField(),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    _buildPasswordField(),
+                  ],
+                ),
+              ),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              child: message == null
+                  ? const SizedBox(width: double.infinity)
+                  : Padding(
+                      padding: const EdgeInsets.only(top: AppSpacing.md),
+                      child: FormBanner(
+                        message: message,
+                        tone: _errorMessage != null
+                            ? FormBannerTone.error
+                            : FormBannerTone.success,
+                      ),
+                    ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            reveal(
+              0.55,
+              1,
+              PrimaryButton(
+                label: 'Sign in',
+                icon: Icons.arrow_forward_rounded,
+                isLoading: _isSubmitting,
+                onPressed: _submit,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            reveal(
+              0.65,
+              1,
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    'New to Careerly?',
+                    style: theme.textTheme.bodyMedium?.copyWith(color: muted),
+                  ),
+                  TextButton(
+                    onPressed: _isSubmitting ? null : _openSignup,
+                    child: const Text('Create an account'),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -360,7 +290,7 @@ class _LoginScreenState extends State<LoginScreen>
           prefixIcon: Icon(Icons.mail_outline_rounded),
         ),
         validator: _validateEmail,
-        onChanged: (_) => _clearError(),
+        onChanged: (_) => _clearMessages(),
         onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
       ),
     );
@@ -391,37 +321,9 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ),
         validator: _validatePassword,
-        onChanged: (_) => _clearError(),
+        onChanged: (_) => _clearMessages(),
         onFieldSubmitted: (_) => _submit(),
       ),
-    );
-  }
-}
-
-/// The rounded surface the form sits on.
-class _Panel extends StatelessWidget {
-  const _Panel({required this.borderRadius, required this.child});
-
-  final BorderRadius borderRadius;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: borderRadius,
-      ),
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.xl,
-        AppSpacing.lg,
-        AppSpacing.lg + bottomInset,
-      ),
-      child: child,
     );
   }
 }

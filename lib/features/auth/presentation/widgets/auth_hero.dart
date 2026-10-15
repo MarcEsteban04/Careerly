@@ -5,12 +5,12 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 
-/// Brand header for the login screen: logo-blue gradient, soft glows and
+/// Brand header for the auth screens: logo-blue gradient, soft glows and
 /// twinkling four-point stars echoing the star in the logo.
 ///
 /// [compact] shrinks it while the keyboard is open.
-class LoginHero extends StatefulWidget {
-  const LoginHero({
+class AuthHero extends StatefulWidget {
+  const AuthHero({
     super.key,
     this.compact = false,
     this.bottomInset = 0,
@@ -28,10 +28,10 @@ class LoginHero extends StatefulWidget {
   static const background = AppColors.brandNight;
 
   @override
-  State<LoginHero> createState() => _LoginHeroState();
+  State<AuthHero> createState() => _AuthHeroState();
 }
 
-class _LoginHeroState extends State<LoginHero>
+class _AuthHeroState extends State<AuthHero>
     with SingleTickerProviderStateMixin {
   static const _logoAsset = 'assets/icons/careerly_logo.png';
 
@@ -74,7 +74,7 @@ class _LoginHeroState extends State<LoginHero>
           colors: [
             AppColors.brandBright,
             AppColors.brandDeep,
-            LoginHero.background,
+            AuthHero.background,
           ],
           stops: [0, 0.55, 1],
         ),
@@ -83,7 +83,12 @@ class _LoginHeroState extends State<LoginHero>
         alignment: Alignment.center,
         children: [
           Positioned.fill(
-            child: CustomPaint(painter: _SkyPainter(_twinkle)),
+            child: CustomPaint(
+              painter: _SkyPainter(
+                _twinkle,
+                topInset: MediaQuery.paddingOf(context).top,
+              ),
+            ),
           ),
           SafeArea(
             bottom: false,
@@ -176,9 +181,12 @@ class _Star {
 }
 
 class _SkyPainter extends CustomPainter {
-  _SkyPainter(this.twinkle) : super(repaint: twinkle);
+  _SkyPainter(this.twinkle, {this.topInset = 0}) : super(repaint: twinkle);
 
   final Animation<double> twinkle;
+
+  /// Status bar height; stars stay below it.
+  final double topInset;
 
   static const _stars = [
     _Star(0.12, 0.22, 7, 0.0),
@@ -205,7 +213,10 @@ class _SkyPainter extends CustomPainter {
           (star.gold ? AppColors.gold : Colors.white).withValues(alpha: opacity);
       _sparkle(
         canvas,
-        Offset(size.width * star.x, size.height * star.y),
+        Offset(
+          size.width * star.x,
+          topInset + (size.height - topInset) * star.y,
+        ),
         star.size * (0.9 + 0.1 * wave),
         color,
       );
@@ -236,5 +247,6 @@ class _SkyPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_SkyPainter oldDelegate) => false;
+  bool shouldRepaint(_SkyPainter oldDelegate) =>
+      oldDelegate.topInset != topInset;
 }

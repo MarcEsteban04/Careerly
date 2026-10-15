@@ -47,3 +47,8 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // AppCompat themes are required by the local_auth biometric prompt.
+    implementation("androidx.appcompat:appcompat:1.7.1")
+}

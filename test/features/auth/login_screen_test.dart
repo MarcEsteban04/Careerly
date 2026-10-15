@@ -2,62 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:careerly/features/auth/data/auth_repository.dart';
-import 'package:careerly/features/auth/data/last_email_store.dart';
+import 'package:careerly/features/auth/data/remembered_account_store.dart';
 import 'package:careerly/features/auth/presentation/login_screen.dart';
+import 'package:careerly/features/auth/presentation/signup_screen.dart';
 
-class _FakeAuthRepository implements AuthRepository {
-  Object? errorToThrow;
-  String? lastEmail;
-
-  @override
-  Future<void> signIn({required String email, required String password}) async {
-    lastEmail = email;
-    if (errorToThrow != null) throw errorToThrow!;
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _FakeLastEmailStore implements LastEmailStore {
-  _FakeLastEmailStore([this.email]);
-
-  String? email;
-
-  @override
-  Future<String?> read() async => email;
-
-  @override
-  Future<void> save(String email) async => this.email = email;
-}
+import 'auth_test_utils.dart';
 
 void main() {
-  Future<_FakeAuthRepository> pumpLogin(
+  Future<FakeAuthRepository> pumpLogin(
     WidgetTester tester, {
-    _FakeLastEmailStore? store,
+    FakeRememberedAccountStore? store,
   }) async {
-    // Reduce motion: skips the intro and the looping star animation.
-    tester.platformDispatcher.accessibilityFeaturesTestValue =
-        const FakeAccessibilityFeatures(disableAnimations: true);
-    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
-
-    // Typical phone viewport.
-    tester.view
-      ..physicalSize = const Size(1170, 2532)
-      ..devicePixelRatio = 3;
-    addTearDown(tester.view.reset);
-
-    final repo = _FakeAuthRepository();
-    await tester.pumpWidget(
-      MaterialApp(
-        home: LoginScreen(
-          authRepository: repo,
-          lastEmailStore: store ?? _FakeLastEmailStore(),
-        ),
+    final repo = FakeAuthRepository();
+    await pumpAuthScreen(
+      tester,
+      LoginScreen(
+        authRepository: repo,
+        accountStore: store ?? FakeRememberedAccountStore(),
       ),
     );
-    await tester.pumpAndSettle();
     return repo;
   }
 
@@ -73,7 +36,7 @@ void main() {
   });
 
   testWidgets('signs in with trimmed email and remembers it', (tester) async {
-    final store = _FakeLastEmailStore();
+    final store = FakeRememberedAccountStore();
     final repo = await pumpLogin(tester, store: store);
 
     await tester.enterText(find.byType(TextFormField).first, ' me@careerly.app ');
@@ -82,7 +45,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repo.lastEmail, 'me@careerly.app');
-    expect(store.email, 'me@careerly.app');
+    expect(store.account?.email, 'me@careerly.app');
   });
 
   testWidgets('shows a friendly message for wrong credentials', (tester) async {
@@ -100,13 +63,17 @@ void main() {
     );
   });
 
-  testWidgets('remembered email only asks for a password', (tester) async {
+  testWidgets('remembered account greets by name and asks for password only',
+      (tester) async {
     final repo = await pumpLogin(
       tester,
-      store: _FakeLastEmailStore('me@careerly.app'),
+      store: FakeRememberedAccountStore(
+        const RememberedAccount(email: 'me@careerly.app', name: 'Marc Esteban'),
+      ),
     );
 
-    expect(find.text('me@careerly.app'), findsOneWidget);
+    expect(find.textContaining(', Marc'), findsOneWidget);
+    expect(find.text('Marc Esteban'), findsOneWidget);
     expect(find.byType(TextFormField), findsOneWidget);
 
     await tester.enterText(find.byType(TextFormField), 'secret');
@@ -117,5 +84,14 @@ void main() {
     await tester.tap(find.text('Change'));
     await tester.pumpAndSettle();
     expect(find.byType(TextFormField), findsNWidgets(2));
+  });
+
+  testWidgets('opens the sign-up screen', (tester) async {
+    await pumpLogin(tester);
+
+    await tester.tap(find.text('Create an account'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SignupScreen), findsOneWidget);
   });
 }

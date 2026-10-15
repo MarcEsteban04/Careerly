@@ -29,6 +29,11 @@ abstract final class AppColors {
   static const darkText = Color(0xFFF2F3F8);
   static const darkTextMuted = Color(0xFF9AA0B8);
 
+  static const success = Color(0xFF067647);
+  static const successDark = Color(0xFF47CD89);
+  static const warning = Color(0xFFB54708);
+  static const warningDark = Color(0xFFFDB022);
+
   static const error = Color(0xFFD92D20);
   static const errorDark = Color(0xFFF97066);
 }
