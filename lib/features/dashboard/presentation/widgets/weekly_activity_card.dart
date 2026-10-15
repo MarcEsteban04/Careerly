@@ -36,7 +36,6 @@ class WeeklyActivityCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final total = perWeekday.fold(0, (sum, c) => sum + c);
-    final peak = math.max(1, perWeekday.reduce(math.max));
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.md + 4),
@@ -49,15 +48,17 @@ class WeeklyActivityCard extends StatelessWidget {
             children: [
               Text(
                 '$total',
-                style: theme.textTheme.headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.w700),
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(width: AppSpacing.xs),
               Expanded(
                 child: Text(
                   total == 1 ? 'application sent' : 'applications sent',
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: colorScheme.onSurfaceVariant),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],
@@ -65,20 +66,19 @@ class WeeklyActivityCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           SizedBox(
             height: _chartHeight,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Stack(
               children: [
-                for (var i = 0; i < 7; i++)
-                  Expanded(
-                    child: Semantics(
-                      label: '${_dayNames[i]}: ${perWeekday[i]}',
-                      excludeSemantics: true,
-                      child: _DayBar(
-                        count: perWeekday[i],
-                        fraction: perWeekday[i] / peak,
-                        label: _days[i],
-                        isToday: i == todayIndex,
-                        delay: i,
+                _buildBars(),
+                if (total == 0)
+                  Positioned.fill(
+                    bottom: 36,
+                    child: Center(
+                      child: Text(
+                        'Applications you send this week show up here.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                   ),
@@ -87,6 +87,29 @@ class WeeklyActivityCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildBars() {
+    final peak = math.max(1, perWeekday.reduce(math.max));
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < 7; i++)
+          Expanded(
+            child: Semantics(
+              label: '${_dayNames[i]}: ${perWeekday[i]}',
+              excludeSemantics: true,
+              child: _DayBar(
+                count: perWeekday[i],
+                fraction: perWeekday[i] / peak,
+                label: _days[i],
+                isToday: i == todayIndex,
+                delay: i,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -110,19 +133,23 @@ class _DayBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final emphasis = isToday ? colorScheme.primary : colorScheme.onSurfaceVariant;
+    final emphasis = isToday
+        ? colorScheme.primary
+        : colorScheme.onSurfaceVariant;
     final barColor = count == 0
         ? colorScheme.outlineVariant
         : isToday
-            ? colorScheme.primary
-            : colorScheme.primary.withValues(alpha: 0.35);
+        ? colorScheme.primary
+        : colorScheme.primary.withValues(alpha: 0.35);
 
     return Column(
       children: [
         Text(
           count > 0 ? '$count' : '',
-          style: theme.textTheme.labelSmall
-              ?.copyWith(fontWeight: FontWeight.w700, color: emphasis),
+          style: theme.textTheme.labelSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: emphasis,
+          ),
         ),
         const SizedBox(height: 4),
         // The bar takes whatever height is left, so larger text never

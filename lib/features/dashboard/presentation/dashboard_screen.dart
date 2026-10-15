@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/staggered_reveal.dart';
 import '../../../core/widgets/tab_page.dart';
@@ -57,8 +57,9 @@ class DashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+    return ScrollAwareStatusBar(
+      // Roughly where the hero's bottom edge passes under the status bar.
+      threshold: 260,
       child: RefreshIndicator(
         onRefresh: controller.load,
         edgeOffset: MediaQuery.paddingOf(context).top,
