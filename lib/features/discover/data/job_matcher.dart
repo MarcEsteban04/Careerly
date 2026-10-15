@@ -2,26 +2,13 @@ import '../../profile/data/career_profile.dart';
 import 'job_listing.dart';
 
 class JobMatch {
-  const JobMatch({
-    required this.score,
-    required this.reasons,
-    this.aiSummary,
-    this.aiProvider,
-  });
+  const JobMatch({required this.score, required this.reasons});
 
   /// 0–100.
   final int score;
 
   /// Short, human-readable reasons, best first.
   final List<String> reasons;
-
-  /// One-sentence verdict from AI ranking, when available.
-  final String? aiSummary;
-
-  /// Which AI provider scored it (null for keyword scoring).
-  final String? aiProvider;
-
-  bool get isAi => aiSummary != null;
 }
 
 /// Scores how well a job fits the career profile, from the role title,

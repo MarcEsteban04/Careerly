@@ -17,6 +17,9 @@ class JSearchClient {
 
   static const _host = 'api.openwebninja.com';
 
+  /// Jobs per page; a full page means there may be more.
+  static const pageSize = 10;
+
   bool get isConfigured => apiKey.isNotEmpty;
 
   Future<List<JobListing>> search(JobSearchQuery query) async {
@@ -28,7 +31,7 @@ class JSearchClient {
     };
     final uri = Uri.https(_host, '/jsearch/search', {
       'query': '${query.keywords}$where',
-      'page': '1',
+      'page': '${query.page}',
       'num_pages': '1',
       'date_posted': query.postedWithin.jsearchValue,
       if (query.scope != SearchScope.anywhere) 'country': 'ph',

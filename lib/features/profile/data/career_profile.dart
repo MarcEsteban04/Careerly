@@ -91,16 +91,6 @@ class CareerProfile {
         'resume': resume?.toJson(),
       };
 
-  /// Stable fingerprint, used to know when AI rankings are out of date.
-  String get fingerprint => [
-        effectiveRoles.join(','),
-        effectiveSkills.join(','),
-        effectiveYears,
-        effectiveLocation,
-        workSetup.name,
-        resume?.uploadedAt.toIso8601String(),
-      ].join('|').toLowerCase();
-
   static List<String> _merge(List<String> first, List<String> second) {
     final seen = <String>{};
     return [

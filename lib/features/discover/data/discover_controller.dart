@@ -6,7 +6,6 @@ import '../../job_alerts/data/job_alert_store.dart';
 import '../../profile/data/career_profile.dart';
 import '../../profile/data/career_profile_repository.dart';
 import '../../resume/data/resume_reader.dart';
-import 'ai_job_ranker.dart';
 import 'ai_job_search_client.dart';
 import 'job_listing.dart';
 import 'job_matcher.dart';
@@ -23,19 +22,29 @@ class RankedListing {
   final JobMatch? match;
 }
 
-/// Runs job searches and ranks results for the user.
+/// The pages of one search loaded so far.
+class _SearchPages {
+  const _SearchPages(this.pages, {required this.hasMore});
+
+  final List<List<JobListing>> pages;
+
+  /// Whether the job boards may have another page.
+  final bool hasMore;
+
+  Iterable<JobListing> get listings => pages.expand((p) => p);
+}
+
+/// Runs job searches and ranks results against the career profile.
 ///
 /// Sources, in order: JSearch and Jooble; if they fail or find nothing,
-/// AI web search. Ranking: instant keyword scores, then an AI re-rank
-/// against the profile and resume when an AI provider is available.
-/// Results are cached per query because the job APIs have small quotas.
+/// AI web search. Results come a page at a time ([loadMore]), and are
+/// cached per query because the job APIs have small quotas.
 class DiscoverController extends ChangeNotifier {
   DiscoverController({
     required this.jsearch,
     required this.jooble,
     required this.profiles,
     this.aiSearch,
-    this.aiRanker,
     this.resumeReader,
     this.preferences,
     this.alerts,
@@ -47,7 +56,6 @@ class DiscoverController extends ChangeNotifier {
   final JoobleClient jooble;
   final CareerProfileRepository profiles;
   final AiJobSearchClient? aiSearch;
-  final AiJobRanker? aiRanker;
   final ResumeReader? resumeReader;
 
   /// Saved searches and "Not interested" jobs; optional so search works
@@ -61,20 +69,19 @@ class DiscoverController extends ChangeNotifier {
   Set<String> _dismissed = const {};
   Map<String, int> _freshCounts = const {};
 
-  final _cache = <String, List<JobListing>>{};
-
-  /// AI verdicts keyed by `profileFingerprint|listingId`.
-  final _verdicts = <String, (AiVerdict, String)>{};
+  final _cache = <String, _SearchPages>{};
 
   CareerProfile _profile;
   SearchScope _scope = SearchScope.philippines;
   PostedWithin _postedWithin = PostedWithin.month;
   String _keywords = '';
-  List<JobListing>? _listings;
+  JobSearchQuery? _query;
+  _SearchPages? _pages;
   List<RankedListing>? _results;
   bool _isLoading = false;
-  bool _isRanking = false;
+  bool _isLoadingMore = false;
   String? _error;
+  String? _loadMoreError;
   String? _notice;
   int _generation = 0;
 
@@ -87,8 +94,15 @@ class DiscoverController extends ChangeNotifier {
   List<RankedListing>? get results => _results;
   bool get isLoading => _isLoading;
 
-  /// AI is re-ranking the current results.
-  bool get isRanking => _isRanking;
+  /// The next page is loading.
+  bool get isLoadingMore => _isLoadingMore;
+
+  /// Whether another page of results can be loaded.
+  bool get canLoadMore =>
+      !_isLoading && _error == null && (_pages?.hasMore ?? false);
+
+  /// Set when loading the next page failed.
+  String? get loadMoreError => _loadMoreError;
   String? get error => _error;
 
   /// Informational message about the current results, e.g. AI fallback.
@@ -116,14 +130,7 @@ class DiscoverController extends ChangeNotifier {
   Future<void> saveProfile(CareerProfile profile) async {
     _profile = await profiles.save(profile);
     _syncAlerts(() => alerts?.setLocation(_profile.effectiveLocation));
-    final listings = _listings;
-    if (listings != null) {
-      _results = _rankByKeywords(listings);
-      notifyListeners();
-      await _rankWithAi(listings, _generation);
-    } else {
-      notifyListeners();
-    }
+    _refreshResults();
   }
 
   /// Reads a resume PDF with AI. Throws if no provider can read it.
@@ -161,8 +168,9 @@ class DiscoverController extends ChangeNotifier {
     final generation = ++_generation;
     _keywords = text;
     _isLoading = true;
-    _isRanking = false;
+    _isLoadingMore = false;
     _error = null;
+    _loadMoreError = null;
     _notice = null;
     notifyListeners();
 
@@ -174,11 +182,13 @@ class DiscoverController extends ChangeNotifier {
     );
 
     try {
-      final listings = _cache[query.cacheKey] ?? await _fetch(query);
+      final pages = _cache[query.cacheKey] ?? await _fetchFirst(query);
       if (generation != _generation) return;
-      _cache[query.cacheKey] = listings;
-      _listings = listings;
-      _results = _rankByKeywords(listings);
+      _cache[query.cacheKey] = pages;
+      _query = query;
+      _pages = pages;
+      _results = _rank(pages);
+      final listings = pages.listings;
       final aiProvider = listings.isEmpty ? null : listings.first.foundByAi;
       if (aiProvider != null) {
         _notice = 'The job boards were unavailable, so $aiProvider searched '
@@ -197,10 +207,49 @@ class DiscoverController extends ChangeNotifier {
         notifyListeners();
       }
     }
+  }
 
-    final listings = _listings;
-    if (generation == _generation && listings != null && _error == null) {
-      await _rankWithAi(listings, generation);
+  /// Appends the next page of results. New jobs go below the ones already
+  /// shown (each page is sorted by match on its own), so nothing jumps.
+  Future<void> loadMore() async {
+    final query = _query;
+    final current = _pages;
+    if (!canLoadMore || _isLoadingMore || query == null || current == null) {
+      return;
+    }
+
+    final generation = _generation;
+    _isLoadingMore = true;
+    _loadMoreError = null;
+    notifyListeners();
+
+    try {
+      final (found, hasMore) =
+          await _fetchPage(query.copyWith(page: current.pages.length + 1));
+      if (generation != _generation) return;
+      final seen = {for (final l in current.listings) l.dedupeKey};
+      final added = [
+        for (final listing in found)
+          if (seen.add(listing.dedupeKey)) listing,
+      ];
+      final pages = _SearchPages(
+        [...current.pages, if (added.isNotEmpty) added],
+        hasMore: hasMore && added.isNotEmpty,
+      );
+      _cache[query.cacheKey] = pages;
+      _pages = pages;
+      _results = _rank(pages);
+    } catch (e) {
+      debugPrint('Loading more jobs failed: $e');
+      if (generation != _generation) return;
+      _loadMoreError = e is JobSearchLimitException
+          ? "You've used this month's free job searches."
+          : "Couldn't load more jobs. Check your connection and try again.";
+    } finally {
+      if (generation == _generation) {
+        _isLoadingMore = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -211,30 +260,70 @@ class DiscoverController extends ChangeNotifier {
     return search(_keywords);
   }
 
-  Future<List<JobListing>> _fetch(JobSearchQuery query) async {
+  /// One page from the job boards, and whether there may be another.
+  /// Throws if every board failed.
+  Future<(List<JobListing>, bool)> _fetchPage(JobSearchQuery query) async {
     final listings = <JobListing>[];
-    var apisOutOfQuota = false;
+    var hasMore = false;
+    Object? failure;
 
-    try {
-      if (jsearch.isConfigured) listings.addAll(await jsearch.search(query));
-    } on JobSearchLimitException {
-      apisOutOfQuota = true;
-    } catch (e) {
-      debugPrint('JSearch failed: $e');
+    if (jsearch.isConfigured) {
+      try {
+        final found = await jsearch.search(query);
+        listings.addAll(found);
+        hasMore |= found.length >= JSearchClient.pageSize;
+      } catch (e) {
+        debugPrint('JSearch failed: $e');
+        failure = e;
+      }
     }
     if (jooble.isConfigured && jooble.supports(query.scope)) {
       try {
-        listings.addAll(await jooble.search(query));
+        final found = await jooble.search(query);
+        listings.addAll(found);
+        hasMore |= found.isNotEmpty;
+        failure = null;
       } catch (e) {
         debugPrint('Jooble failed: $e');
+        failure ??= e;
       }
     }
+    if (listings.isEmpty && failure != null) throw failure;
 
-    // AI web search backs up the job APIs.
+    final seen = <String>{};
+    return (
+      [
+        for (final listing in listings)
+          if (listing.applyUrl.isNotEmpty && seen.add(listing.dedupeKey))
+            listing,
+      ],
+      hasMore,
+    );
+  }
+
+  /// The first page, with AI web search as a backup when the boards fail
+  /// or find nothing.
+  Future<_SearchPages> _fetchFirst(JobSearchQuery query) async {
+    var listings = const <JobListing>[];
+    var hasMore = false;
+    var apisOutOfQuota = false;
+
+    try {
+      (listings, hasMore) = await _fetchPage(query);
+    } on JobSearchLimitException {
+      apisOutOfQuota = true;
+    } catch (_) {
+      // Logged in _fetchPage; AI search below may still find jobs.
+    }
+    if (listings.isNotEmpty) {
+      return _SearchPages([listings], hasMore: hasMore);
+    }
+
     final ai = aiSearch;
-    if (listings.isEmpty && ai != null && ai.isConfigured) {
+    final found = <JobListing>[];
+    if (ai != null && ai.isConfigured) {
       try {
-        listings.addAll(await ai.search(query));
+        found.addAll(await ai.search(query));
       } on AiUnavailableException catch (e) {
         debugPrint('AI job search failed: $e');
         if (e.allOutOfQuota || apisOutOfQuota) {
@@ -246,17 +335,24 @@ class DiscoverController extends ChangeNotifier {
       } catch (e) {
         debugPrint('AI job search failed: $e');
       }
-    } else if (listings.isEmpty && apisOutOfQuota) {
+    } else if (apisOutOfQuota) {
       throw const _NoSourcesException(
         "You've used this month's free job searches. Try again next month.",
       );
     }
 
     final seen = <String>{};
-    return [
-      for (final listing in listings)
-        if (listing.applyUrl.isNotEmpty && seen.add(listing.dedupeKey)) listing,
-    ];
+    return _SearchPages(
+      [
+        [
+          for (final listing in found)
+            if (listing.applyUrl.isNotEmpty && seen.add(listing.dedupeKey))
+              listing,
+        ],
+      ],
+      // AI search finds one batch; there's no next page.
+      hasMore: false,
+    );
   }
 
   // Saved searches and "Not interested" ------------------------------------
@@ -269,9 +365,7 @@ class DiscoverController extends ChangeNotifier {
           await (prefs.fetchSavedSearches(), prefs.fetchDismissedKeys()).wait;
       _savedSearches = saved;
       _dismissed = dismissed;
-      final listings = _listings;
-      if (listings != null) _results = _rankByKeywords(listings);
-      notifyListeners();
+      _refreshResults();
       await _syncAlerts(() async {
         await alerts?.setSearches(saved);
         await alerts?.setDismissed(dismissed);
@@ -328,7 +422,7 @@ class DiscoverController extends ChangeNotifier {
         );
         _savedSearches = [saved, ..._savedSearches];
         // What's on screen now isn't news: alert only on later postings.
-        final shown = _listings ?? const <JobListing>[];
+        final shown = _pages?.listings ?? const <JobListing>[];
         await _syncAlerts(
           () => alerts?.markSeen(saved.id, shown.map((l) => l.dedupeKey)),
         );
@@ -350,7 +444,7 @@ class DiscoverController extends ChangeNotifier {
     }
     await _syncAlerts(() => alerts?.clearFresh(search.id));
     await this.search(search.keywords);
-    final shown = _listings ?? const <JobListing>[];
+    final shown = _pages?.listings ?? const <JobListing>[];
     await _syncAlerts(
       () => alerts?.markSeen(search.id, shown.map((l) => l.dedupeKey)),
     );
@@ -402,8 +496,8 @@ class DiscoverController extends ChangeNotifier {
   }
 
   void _refreshResults() {
-    final listings = _listings;
-    if (listings != null) _results = _rankByKeywords(listings);
+    final pages = _pages;
+    if (pages != null) _results = _rank(pages);
     notifyListeners();
   }
 
@@ -411,66 +505,24 @@ class DiscoverController extends ChangeNotifier {
       ? 'Run the latest database migration to use this.'
       : friendlyErrorMessage(e);
 
-  List<RankedListing> _rankByKeywords(List<JobListing> listings) {
-    final fingerprint = _profile.fingerprint;
+  /// Scores every job against the profile, best match first within each
+  /// page, leaving out jobs marked "Not interested".
+  List<RankedListing> _rank(_SearchPages pages) => [
+        for (final page in pages.pages) ..._rankPage(page),
+      ];
+
+  List<RankedListing> _rankPage(List<JobListing> listings) {
     final ranked = [
       for (final listing in listings)
         if (!_dismissed.contains(listing.dedupeKey))
-        RankedListing(
-          listing,
-          _withAi(JobMatcher.match(listing, _profile),
-              _verdicts['$fingerprint|${listing.id}']),
-        ),
+          RankedListing(listing, JobMatcher.match(listing, _profile)),
     ];
-    _sort(ranked);
-    return ranked;
-  }
-
-  Future<void> _rankWithAi(List<JobListing> listings, int generation) async {
-    final ranker = aiRanker;
-    if (ranker == null || !ranker.isConfigured || _profile.isEmpty) return;
-
-    final fingerprint = _profile.fingerprint;
-    final pending = listings
-        .where((l) => !_verdicts.containsKey('$fingerprint|${l.id}'))
-        .toList();
-    if (pending.isEmpty) return;
-
-    _isRanking = true;
-    notifyListeners();
-    try {
-      final (verdicts, provider) = await ranker.rank(pending, _profile);
-      verdicts.forEach((id, verdict) {
-        _verdicts['$fingerprint|$id'] = (verdict, provider);
-      });
-    } catch (e) {
-      // Keyword scores stay in place.
-      debugPrint('AI ranking failed: $e');
-    } finally {
-      if (generation == _generation) {
-        _isRanking = false;
-        _results = _rankByKeywords(listings);
-        notifyListeners();
-      }
+    if (!_profile.isEmpty) {
+      ranked.sort(
+        (a, b) => (b.match?.score ?? 0).compareTo(a.match?.score ?? 0),
+      );
     }
-  }
-
-  static JobMatch? _withAi(JobMatch? keyword, (AiVerdict, String)? ai) {
-    if (ai == null) return keyword;
-    final (verdict, provider) = ai;
-    return JobMatch(
-      score: verdict.score,
-      reasons: keyword?.reasons ?? const [],
-      aiSummary: verdict.reason,
-      aiProvider: provider,
-    );
-  }
-
-  void _sort(List<RankedListing> ranked) {
-    if (_profile.isEmpty) return;
-    ranked.sort(
-      (a, b) => (b.match?.score ?? 0).compareTo(a.match?.score ?? 0),
-    );
+    return ranked;
   }
 }
 

@@ -154,15 +154,10 @@ class DiscoverResults extends StatelessWidget {
       );
     }
 
-    final aiProvider = results
-        .map((r) => r.match?.aiProvider)
-        .firstWhere((p) => p != null, orElse: () => null);
     final summary = controller.profile.isEmpty
         ? '${results.length} jobs for "${controller.keywords}"'
-        : aiProvider != null
-            ? '${results.length} jobs · ranked for you by $aiProvider'
-            : '${results.length} jobs for "${controller.keywords}" · best '
-                'matches first';
+        : '${results.length} jobs for "${controller.keywords}" · best '
+            'matches first';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -177,17 +172,12 @@ class DiscoverResults extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  controller.isRanking ? 'Ranking with AI…' : summary,
+                  summary,
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
               ),
-              if (controller.isRanking)
-                const SizedBox.square(
-                  dimension: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else if (controller.preferences != null)
+              if (controller.preferences != null)
                 IconButton(
                   tooltip: controller.isCurrentSearchSaved
                       ? 'Remove saved search'
@@ -242,6 +232,7 @@ class DiscoverResults extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
         ],
+        _MoreResults(controller: controller),
         Padding(
           padding: const EdgeInsets.only(top: AppSpacing.xs),
           child: Text(
@@ -349,6 +340,75 @@ class _ProfileSummary extends StatelessWidget {
 }
 
 /// Bookmarked searches: tap to run, long-press to remove.
+/// Below the results: load the next page, a spinner while it loads, a
+/// retry when it fails, or a note that there's nothing more.
+class _MoreResults extends StatelessWidget {
+  const _MoreResults({required this.controller});
+
+  final DiscoverController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final error = controller.loadMoreError;
+
+    final Widget child;
+    if (controller.isLoadingMore) {
+      child = const Padding(
+        padding: EdgeInsets.all(AppSpacing.sm),
+        child: SizedBox.square(
+          dimension: 24,
+          child: CircularProgressIndicator(strokeWidth: 2.4),
+        ),
+      );
+    } else if (controller.canLoadMore) {
+      child = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (error != null) ...[
+            Text(
+              error,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.error),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+          ],
+          OutlinedButton.icon(
+            onPressed: controller.loadMore,
+            icon: Icon(
+              error == null ? Icons.expand_more_rounded : Icons.refresh_rounded,
+            ),
+            label: Text(error == null ? 'Show more jobs' : 'Try again'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+            ),
+          ),
+        ],
+      );
+    } else {
+      child = Padding(
+        padding: const EdgeInsets.all(AppSpacing.xs),
+        child: Text(
+          "That's every job we found. Try a broader role or a longer time "
+          'range for more.',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(
+        top: AppSpacing.xs,
+        bottom: AppSpacing.sm,
+      ),
+      child: Center(child: child),
+    );
+  }
+}
+
 class _SavedSearches extends StatelessWidget {
   const _SavedSearches({
     required this.controller,

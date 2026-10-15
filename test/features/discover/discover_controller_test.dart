@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:careerly/core/ai/ai_chain.dart';
-import 'package:careerly/features/discover/data/ai_job_ranker.dart';
 import 'package:careerly/features/discover/data/ai_job_search_client.dart';
 import 'package:careerly/features/discover/data/discover_controller.dart';
 import 'package:careerly/features/discover/data/job_listing.dart';
@@ -20,6 +19,20 @@ class _FailingJSearch extends JSearchClient {
   @override
   Future<List<JobListing>> search(JobSearchQuery query) async =>
       throw const JobSearchLimitException();
+}
+
+/// Serves [pages] by page number; empty past the last one.
+class _PagedJSearch extends JSearchClient {
+  _PagedJSearch(this.pages) : super(apiKey: 'test');
+
+  final Map<int, List<JobListing>> pages;
+  bool failing = false;
+
+  @override
+  Future<List<JobListing>> search(JobSearchQuery query) async {
+    if (failing) throw const JobSearchException('JSearch returned 500');
+    return pages[query.page] ?? const [];
+  }
 }
 
 void main() {
@@ -49,43 +62,72 @@ void main() {
     expect(profile.effectiveRoles, contains('Product Designer'));
   });
 
-  test('AI re-ranks results with a reason', () async {
-    final ai = FakeAiProvider(
-      'Gemini',
-      reply: '{"results": ['
-          '{"id": "j2", "score": 91, "reason": "Your Figma work fits."},'
-          '{"id": "j1", "score": 40, "reason": "Different field."}]}',
-    );
-    final controller = DiscoverController(
-      jsearch: FakeJSearchClient(sampleListings),
-      jooble: JoobleClient(apiKey: ''),
-      profiles: FakeCareerProfileRepository(resumeProfile),
-      aiRanker: AiJobRanker(AiChain([ai])),
-    );
+  group('pagination', () {
+    JobListing job(int n) => JobListing(
+          id: 'p$n',
+          title: 'Designer $n',
+          company: 'Company $n',
+          source: 'LinkedIn',
+          applyUrl: 'https://example.com/$n',
+          description: '',
+        );
 
-    await controller.search('designer');
+    DiscoverController withPages(Map<int, List<JobListing>> pages) =>
+        DiscoverController(
+          jsearch: _PagedJSearch(pages),
+          jooble: JoobleClient(apiKey: ''),
+          profiles: FakeCareerProfileRepository(resumeProfile),
+        );
 
-    final results = controller.results!;
-    expect(results.first.listing.id, 'j2');
-    expect(results.first.match!.score, 91);
-    expect(results.first.match!.aiSummary, 'Your Figma work fits.');
-    expect(results.first.match!.aiProvider, 'Gemini');
-    expect(controller.isRanking, isFalse);
-  });
+    test('a full page offers more; the next page appends below', () async {
+      final controller = withPages({
+        1: [for (var i = 1; i <= 10; i++) job(i)],
+        2: [job(10), job(11), job(12)],
+      });
 
-  test('keyword scores stay when AI ranking fails', () async {
-    final controller = DiscoverController(
-      jsearch: FakeJSearchClient(sampleListings),
-      jooble: JoobleClient(apiKey: ''),
-      profiles: FakeCareerProfileRepository(resumeProfile),
-      aiRanker: AiJobRanker(AiChain([FakeAiProvider('Gemini', reply: 'oops')])),
-    );
+      await controller.search('designer');
+      expect(controller.results, hasLength(10));
+      expect(controller.canLoadMore, isTrue);
+      final firstPage = controller.results!.map((r) => r.listing.id).toList();
 
-    await controller.search('designer');
+      await controller.loadMore();
 
-    expect(controller.results, hasLength(2));
-    expect(controller.results!.every((r) => r.match?.aiSummary == null), isTrue);
-    expect(controller.error, isNull);
+      final ids = controller.results!.map((r) => r.listing.id).toList();
+      // The duplicate from page 2 is dropped; earlier jobs keep their place.
+      expect(ids, hasLength(12));
+      expect(ids.take(10), firstPage);
+      expect(ids.skip(10), unorderedEquals(['p11', 'p12']));
+      // A short page means the boards have nothing more.
+      expect(controller.canLoadMore, isFalse);
+      expect(controller.isLoadingMore, isFalse);
+    });
+
+    test('a short first page has no more', () async {
+      final controller = withPages({1: [job(1), job(2)]});
+
+      await controller.search('designer');
+
+      expect(controller.canLoadMore, isFalse);
+    });
+
+    test('a failed page can be retried', () async {
+      final jsearch = _PagedJSearch({
+        1: [for (var i = 1; i <= 10; i++) job(i)],
+      });
+      final controller = DiscoverController(
+        jsearch: jsearch,
+        jooble: JoobleClient(apiKey: ''),
+        profiles: FakeCareerProfileRepository(resumeProfile),
+      );
+      await controller.search('designer');
+      jsearch.failing = true;
+
+      await controller.loadMore();
+
+      expect(controller.loadMoreError, isNotNull);
+      expect(controller.canLoadMore, isTrue);
+      expect(controller.results, hasLength(10));
+    });
   });
 
   test('AI web search backs up the job APIs when they run out', () async {

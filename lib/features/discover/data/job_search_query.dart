@@ -28,6 +28,7 @@ class JobSearchQuery {
     this.scope = SearchScope.philippines,
     this.postedWithin = PostedWithin.month,
     this.location,
+    this.page = 1,
   });
 
   final String keywords;
@@ -37,7 +38,18 @@ class JobSearchQuery {
   /// City or region to bias Philippine searches, e.g. "Manila".
   final String? location;
 
-  /// Identifies the query for caching.
+  /// Results page, from 1.
+  final int page;
+
+  JobSearchQuery copyWith({int? page}) => JobSearchQuery(
+        keywords: keywords,
+        scope: scope,
+        postedWithin: postedWithin,
+        location: location,
+        page: page ?? this.page,
+      );
+
+  /// Identifies the search (not the page) for caching.
   String get cacheKey =>
       '${keywords.toLowerCase().trim()}|${scope.name}|${postedWithin.name}|'
       '${location?.toLowerCase().trim() ?? ''}';

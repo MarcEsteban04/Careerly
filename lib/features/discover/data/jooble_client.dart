@@ -27,6 +27,7 @@ class JoobleClient {
           body: jsonEncode({
             'keywords': query.keywords,
             if (query.scope == SearchScope.remote) 'location': 'Remote',
+            'page': '${query.page}',
           }),
         )
         .timeout(const Duration(seconds: 30));

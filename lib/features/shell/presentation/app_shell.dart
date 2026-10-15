@@ -23,7 +23,6 @@ import '../../apply/presentation/apply_kit_sheet.dart';
 import '../../auth/data/app_lock_repository.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../dashboard/presentation/dashboard_screen.dart';
-import '../../discover/data/ai_job_ranker.dart';
 import '../../discover/data/ai_job_search_client.dart';
 import '../../discover/data/discover_controller.dart';
 import '../../discover/data/jooble_client.dart';
@@ -168,7 +167,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         jooble: JoobleClient(apiKey: Env.joobleApiKey),
         profiles: CareerProfileRepository(),
         aiSearch: AiJobSearchClient(_ai),
-        aiRanker: AiJobRanker(_ai),
         resumeReader: ResumeReader(_ai),
         preferences: SearchPreferencesRepository(),
         alerts: _alertStore,
