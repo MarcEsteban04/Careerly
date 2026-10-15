@@ -8,7 +8,9 @@ import 'package:careerly/features/applications/data/applications_repository.dart
 import 'package:careerly/features/applications/data/job_application.dart';
 import 'package:careerly/features/auth/data/app_lock_repository.dart';
 import 'package:careerly/core/ai/ai_chain.dart';
+import 'package:careerly/features/applications/data/application_event.dart';
 import 'package:careerly/features/discover/data/discover_controller.dart';
+import 'package:careerly/features/discover/data/search_preferences_repository.dart';
 import 'package:careerly/features/documents/data/career_document.dart';
 import 'package:careerly/features/documents/data/documents_repository.dart';
 import 'package:careerly/features/studio/data/career_writer.dart';
@@ -64,6 +66,12 @@ class FakeApplicationsRepository implements ApplicationsRepository {
     String? jobUrl,
     String? salary,
     DateTime? appliedOn,
+    String? source,
+    String? externalId,
+    String? jobDescription,
+    DateTime? followUpOn,
+    String? resumeDocumentId,
+    String? coverLetterDocumentId,
   }) async {
     final created = JobApplication(
       id: 'new-${items.length}',
@@ -73,6 +81,13 @@ class FakeApplicationsRepository implements ApplicationsRepository {
       location: location,
       jobUrl: jobUrl,
       salary: salary,
+      appliedOn: appliedOn,
+      source: source,
+      externalId: externalId,
+      jobDescription: jobDescription,
+      followUpOn: followUpOn,
+      resumeDocumentId: resumeDocumentId,
+      coverLetterDocumentId: coverLetterDocumentId,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
@@ -84,6 +99,31 @@ class FakeApplicationsRepository implements ApplicationsRepository {
   Future<void> delete(String id) async => deleted.add(id);
 
   @override
+  Future<JobApplication> markApplied(
+    JobApplication application, {
+    String? resumeDocumentId,
+    String? coverLetterDocumentId,
+    DateTime? followUpOn,
+  }) async {
+    final updated = JobApplication(
+      id: application.id,
+      company: application.company,
+      role: application.role,
+      status: ApplicationStatus.applied,
+      location: application.location,
+      jobUrl: application.jobUrl,
+      appliedOn: DateTime.now(),
+      followUpOn: followUpOn,
+      resumeDocumentId: resumeDocumentId,
+      coverLetterDocumentId: coverLetterDocumentId,
+      createdAt: application.createdAt,
+      updatedAt: DateTime.now(),
+    );
+    items = [for (final a in items) a.id == updated.id ? updated : a];
+    return updated;
+  }
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -92,6 +132,33 @@ class FakeAgendaRepository implements AgendaRepository {
 
   List<AgendaEvent> items;
   final done = <String>{};
+  final created = <AgendaEvent>[];
+  final deleted = <String>[];
+
+  @override
+  Future<AgendaEvent> create({
+    required AgendaEventKind kind,
+    required String title,
+    required DateTime startsAt,
+    String? applicationId,
+  }) async {
+    final event = AgendaEvent(
+      id: 'event-${created.length}',
+      kind: kind,
+      title: title,
+      startsAt: startsAt,
+      applicationId: applicationId,
+    );
+    created.add(event);
+    items = [...items, event];
+    return event;
+  }
+
+  @override
+  Future<void> delete(String id) async {
+    deleted.add(id);
+    items = [for (final e in items) if (e.id != id) e];
+  }
 
   @override
   Future<List<AgendaEvent>> fetchUpcoming({int limit = 20}) async => items;
@@ -225,6 +292,8 @@ Future<void> pumpShell(
   FakeGoalsRepository? goals,
   DiscoverController? discover,
   StudioController? studio,
+  FakeEventsRepository? events,
+  Future<bool> Function(Uri url)? openUrl,
   ThemeData? theme,
 }) async {
   tester.platformDispatcher.accessibilityFeaturesTestValue =
@@ -246,6 +315,8 @@ Future<void> pumpShell(
         goals: goals ?? FakeGoalsRepository(),
         discover: discover ?? fakeDiscover(),
         studio: studio ?? fakeStudio(),
+        events: events ?? FakeEventsRepository(),
+        openUrl: openUrl ?? (_) async => true,
       ),
     ),
   );
@@ -281,11 +352,13 @@ class FakeCareerProfileRepository implements CareerProfileRepository {
 DiscoverController fakeDiscover({
   List<JobListing> listings = const [],
   CareerProfile profile = const CareerProfile(),
+  FakePreferencesRepository? preferences,
 }) =>
     DiscoverController(
       jsearch: FakeJSearchClient(listings),
       jooble: JoobleClient(apiKey: ''),
       profiles: FakeCareerProfileRepository(profile),
+      preferences: preferences,
     );
 
 const sampleListings = [
@@ -366,3 +439,50 @@ StudioController fakeStudio({
       writer: CareerWriter(ai ?? AiChain([])),
       profile: () => profile,
     );
+
+class FakeEventsRepository implements ApplicationEventsRepository {
+  FakeEventsRepository([this.events = const []]);
+
+  final List<ApplicationEvent> events;
+
+  @override
+  Future<List<ApplicationEvent>> fetchFor(String applicationId) async => events;
+}
+
+class FakePreferencesRepository implements SearchPreferencesRepository {
+  final saved = <SavedSearch>[];
+  final dismissed = <String>{};
+
+  @override
+  Future<List<SavedSearch>> fetchSavedSearches() async => List.of(saved);
+
+  @override
+  Future<SavedSearch> saveSearch({
+    required String keywords,
+    required SearchScope scope,
+    required PostedWithin postedWithin,
+  }) async {
+    final search = SavedSearch(
+      id: 'search-${saved.length}',
+      keywords: keywords,
+      scope: scope,
+      postedWithin: postedWithin,
+    );
+    saved.add(search);
+    return search;
+  }
+
+  @override
+  Future<void> deleteSearch(String id) async =>
+      saved.removeWhere((s) => s.id == id);
+
+  @override
+  Future<Set<String>> fetchDismissedKeys() async => {...dismissed};
+
+  @override
+  Future<void> dismiss(JobListing job) async => dismissed.add(job.dedupeKey);
+
+  @override
+  Future<void> undismiss(JobListing job) async =>
+      dismissed.remove(job.dedupeKey);
+}

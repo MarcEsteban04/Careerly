@@ -44,6 +44,29 @@ class AgendaRepository {
     return AgendaEvent.fromJson(row);
   }
 
+  Future<AgendaEvent> update(
+    String id, {
+    required AgendaEventKind kind,
+    required String title,
+    required DateTime startsAt,
+    String? applicationId,
+  }) async {
+    final row = await _client
+        .from(_table)
+        .update({
+          'kind': kind.dbValue,
+          'title': title,
+          'starts_at': startsAt.toUtc().toIso8601String(),
+          'application_id': applicationId,
+        })
+        .eq('id', id)
+        .select(_select)
+        .single();
+    return AgendaEvent.fromJson(row);
+  }
+
+  Future<void> delete(String id) => _client.from(_table).delete().eq('id', id);
+
   Future<void> setDone(String id, {required bool isDone}) =>
       _client.from(_table).update({'is_done': isDone}).eq('id', id);
 }

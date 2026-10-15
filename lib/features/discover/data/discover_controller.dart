@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../core/ai/ai_chain.dart';
+import '../../../core/utils/error_message.dart';
 import '../../profile/data/career_profile.dart';
 import '../../profile/data/career_profile_repository.dart';
 import '../../resume/data/resume_reader.dart';
@@ -11,6 +12,7 @@ import 'job_matcher.dart';
 import 'job_search_query.dart';
 import 'jooble_client.dart';
 import 'jsearch_client.dart';
+import 'search_preferences_repository.dart';
 
 /// A listing with its match against the career profile (if any).
 class RankedListing {
@@ -34,7 +36,10 @@ class DiscoverController extends ChangeNotifier {
     this.aiSearch,
     this.aiRanker,
     this.resumeReader,
-  }) : _profile = profiles.read();
+    this.preferences,
+  }) : _profile = profiles.read() {
+    _loadPreferences();
+  }
 
   final JSearchClient jsearch;
   final JoobleClient jooble;
@@ -42,6 +47,13 @@ class DiscoverController extends ChangeNotifier {
   final AiJobSearchClient? aiSearch;
   final AiJobRanker? aiRanker;
   final ResumeReader? resumeReader;
+
+  /// Saved searches and "Not interested" jobs; optional so search works
+  /// without them.
+  final SearchPreferencesRepository? preferences;
+
+  List<SavedSearch> _savedSearches = const [];
+  Set<String> _dismissed = const {};
 
   final _cache = <String, List<JobListing>>{};
 
@@ -75,6 +87,12 @@ class DiscoverController extends ChangeNotifier {
 
   /// Informational message about the current results, e.g. AI fallback.
   String? get notice => _notice;
+
+  List<SavedSearch> get savedSearches => _savedSearches;
+
+  /// Whether the current search is bookmarked.
+  bool get isCurrentSearchSaved => _savedSearches
+      .any((s) => s.matches(_keywords, _scope, _postedWithin));
 
   bool get canReadResumes => resumeReader?.ai.isConfigured ?? false;
 
@@ -229,10 +247,118 @@ class DiscoverController extends ChangeNotifier {
     ];
   }
 
+  // Saved searches and "Not interested" ------------------------------------
+
+  Future<void> _loadPreferences() async {
+    final prefs = preferences;
+    if (prefs == null) return;
+    try {
+      final (saved, dismissed) =
+          await (prefs.fetchSavedSearches(), prefs.fetchDismissedKeys()).wait;
+      _savedSearches = saved;
+      _dismissed = dismissed;
+      final listings = _listings;
+      if (listings != null) _results = _rankByKeywords(listings);
+      notifyListeners();
+    } catch (e) {
+      // Tables missing (migration not run yet) or offline: search still works.
+      debugPrint('Search preferences unavailable: $e');
+    }
+  }
+
+  /// Bookmarks the current search, or removes the bookmark. Returns an
+  /// error message on failure.
+  Future<String?> toggleSaveCurrentSearch() async {
+    final prefs = preferences;
+    if (prefs == null || _keywords.isEmpty) return null;
+    try {
+      final existing = _savedSearches
+          .where((s) => s.matches(_keywords, _scope, _postedWithin))
+          .firstOrNull;
+      if (existing != null) {
+        await prefs.deleteSearch(existing.id);
+        _savedSearches = [
+          for (final s in _savedSearches)
+            if (s.id != existing.id) s,
+        ];
+      } else {
+        final saved = await prefs.saveSearch(
+          keywords: _keywords,
+          scope: _scope,
+          postedWithin: _postedWithin,
+        );
+        _savedSearches = [saved, ..._savedSearches];
+      }
+      notifyListeners();
+      return null;
+    } catch (e) {
+      return _preferenceError(e);
+    }
+  }
+
+  Future<void> runSavedSearch(SavedSearch search) {
+    _scope = search.scope;
+    _postedWithin = search.postedWithin;
+    return this.search(search.keywords);
+  }
+
+  Future<String?> deleteSavedSearch(SavedSearch search) async {
+    final prefs = preferences;
+    if (prefs == null) return null;
+    try {
+      await prefs.deleteSearch(search.id);
+      _savedSearches = [
+        for (final s in _savedSearches)
+          if (s.id != search.id) s,
+      ];
+      notifyListeners();
+      return null;
+    } catch (e) {
+      return _preferenceError(e);
+    }
+  }
+
+  /// Hides a job from this and future searches. Returns an error message
+  /// on failure.
+  Future<String?> dismiss(JobListing job) async {
+    final before = _dismissed;
+    _dismissed = {..._dismissed, job.dedupeKey};
+    _refreshResults();
+    try {
+      await preferences?.dismiss(job);
+      return null;
+    } catch (e) {
+      _dismissed = before;
+      _refreshResults();
+      return _preferenceError(e);
+    }
+  }
+
+  Future<void> undoDismiss(JobListing job) async {
+    _dismissed = {..._dismissed}..remove(job.dedupeKey);
+    _refreshResults();
+    try {
+      await preferences?.undismiss(job);
+    } catch (e) {
+      debugPrint('Undo dismiss failed: $e');
+    }
+  }
+
+  void _refreshResults() {
+    final listings = _listings;
+    if (listings != null) _results = _rankByKeywords(listings);
+    notifyListeners();
+  }
+
+  static String _preferenceError(Object e) => isMissingSchemaError(e)
+      ? 'Run the latest database migration to use this.'
+      : friendlyErrorMessage(e);
+
   List<RankedListing> _rankByKeywords(List<JobListing> listings) {
     final fingerprint = _profile.fingerprint;
     final ranked = [
       for (final listing in listings)
+        if (!_dismissed.contains(listing.dedupeKey))
         RankedListing(
           listing,
           _withAi(JobMatcher.match(listing, _profile),

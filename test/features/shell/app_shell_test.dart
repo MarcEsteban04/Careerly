@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:careerly/core/widgets/pill_chip.dart';
 import 'package:careerly/features/applications/data/job_application.dart';
 import 'package:careerly/core/ai/ai_chain.dart';
+import 'package:careerly/features/agenda/data/agenda_event.dart';
+import 'package:careerly/features/applications/data/application_event.dart';
 import 'package:careerly/features/documents/data/career_document.dart';
 import 'package:careerly/features/profile/data/career_profile.dart';
 import 'package:careerly/features/resume/data/resume_insights.dart';
@@ -318,6 +320,187 @@ void main() {
       await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
       expect(find.text('Resume · UI Designer'), findsOneWidget);
+    });
+  });
+
+  group('apply flow', () {
+    testWidgets('applies to a discovered job and sets a follow-up',
+        (tester) async {
+      final applications = FakeApplicationsRepository();
+      final agenda = FakeAgendaRepository();
+      Uri? opened;
+      await pumpShell(
+        tester,
+        applications: applications,
+        agenda: agenda,
+        discover: fakeDiscover(
+          listings: sampleListings,
+          profile: const CareerProfile(targetRoles: ['UI Designer']),
+        ),
+        openUrl: (url) async {
+          opened = url;
+          return true;
+        },
+      );
+      await openTab(tester, 'Jobs');
+      await tester.tap(find.text('Discover'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Search "UI Designer"'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('UI/UX Designer'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Apply'));
+      await tester.pumpAndSettle();
+      expect(find.text('Your application kit'), findsOneWidget);
+      await tester.tap(find.text('Open application page'));
+      await tester.pumpAndSettle();
+      expect(opened.toString(), 'https://example.com/acme');
+
+      // Coming back to the app asks whether they applied.
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(find.text('Did you apply?'), findsOneWidget);
+      await tester.tap(find.text('Yes, I applied'));
+      await tester.pumpAndSettle();
+
+      final applied = applications.items.single;
+      expect(applied.status, ApplicationStatus.applied);
+      expect(applied.source, 'LinkedIn');
+      expect(applied.externalId, 'j1');
+      expect(applied.followUpOn, isNotNull);
+      expect(agenda.created.single.kind, AgendaEventKind.followUp);
+      expect(agenda.created.single.applicationId, applied.id);
+    });
+
+    testWidgets('"Not yet" leaves the job untracked', (tester) async {
+      final applications = FakeApplicationsRepository();
+      await pumpShell(
+        tester,
+        applications: applications,
+        discover: fakeDiscover(
+          listings: sampleListings,
+          profile: const CareerProfile(targetRoles: ['UI Designer']),
+        ),
+      );
+      await openTab(tester, 'Jobs');
+      await tester.tap(find.text('Discover'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Search "UI Designer"'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('UI/UX Designer'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Apply'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open application page'));
+      await tester.pumpAndSettle();
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Not yet'));
+      await tester.pumpAndSettle();
+
+      expect(applications.items, isEmpty);
+    });
+  });
+
+  group('job finding', () {
+    Future<FakePreferencesRepository> searchDesigner(WidgetTester tester) async {
+      final preferences = FakePreferencesRepository();
+      await pumpShell(
+        tester,
+        applications: FakeApplicationsRepository(),
+        discover: fakeDiscover(
+          listings: sampleListings,
+          profile: const CareerProfile(targetRoles: ['UI Designer']),
+          preferences: preferences,
+        ),
+      );
+      await openTab(tester, 'Jobs');
+      await tester.tap(find.text('Discover'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Search "UI Designer"'));
+      await tester.pumpAndSettle();
+      return preferences;
+    }
+
+    testWidgets('saves the current search', (tester) async {
+      final preferences = await searchDesigner(tester);
+
+      await tester.tap(find.byTooltip('Save this search'));
+      await tester.pumpAndSettle();
+
+      expect(preferences.saved.single.keywords, 'UI Designer');
+      expect(find.byTooltip('Remove saved search'), findsOneWidget);
+    });
+
+    testWidgets('swiping hides a job, with undo', (tester) async {
+      final preferences = await searchDesigner(tester);
+
+      await tester.drag(find.text('Backend Engineer'), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Backend Engineer'), findsNothing);
+      expect(preferences.dismissed, isNotEmpty);
+
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
+      expect(find.text('Backend Engineer'), findsOneWidget);
+      expect(preferences.dismissed, isEmpty);
+    });
+  });
+
+  group('tracking', () {
+    testWidgets('timeline shows status history', (tester) async {
+      final sample = sampleDashboardData(DateTime.now());
+      await pumpShell(
+        tester,
+        applications: FakeApplicationsRepository(sample.applications),
+        events: FakeEventsRepository([
+          ApplicationEvent(
+            id: 'e2',
+            kind: ApplicationEventKind.statusChanged,
+            fromStatus: ApplicationStatus.applied,
+            toStatus: ApplicationStatus.offer,
+            createdAt: DateTime(2026, 10, 10),
+          ),
+          ApplicationEvent(
+            id: 'e1',
+            kind: ApplicationEventKind.created,
+            toStatus: ApplicationStatus.applied,
+            createdAt: DateTime(2026, 10, 1),
+          ),
+        ]),
+      );
+      await tapChip(tester, 'Offer');
+      await tester.tap(find.text('Design Engineer'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Timeline'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Moved from Applied to Offer'), findsOneWidget);
+      expect(find.text('Added as Applied'), findsOneWidget);
+    });
+
+    testWidgets('swiping an agenda item deletes it after confirming',
+        (tester) async {
+      final sample = sampleDashboardData(DateTime.now());
+      final agenda = FakeAgendaRepository(sample.agenda);
+      await pumpShell(
+        tester,
+        applications: FakeApplicationsRepository(sample.applications),
+        agenda: agenda,
+      );
+      await openTab(tester, 'Agenda');
+
+      await tester.drag(find.text('Email the recruiter'), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      expect(agenda.deleted, ['e2']);
+      expect(find.text('Email the recruiter'), findsNothing);
     });
   });
 

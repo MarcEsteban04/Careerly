@@ -17,11 +17,17 @@ class AgendaScreen extends StatelessWidget {
     required this.controller,
     required this.onAdd,
     required this.onToggleDone,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   final WorkspaceController controller;
   final VoidCallback onAdd;
   final void Function(String id, bool isDone) onToggleDone;
+  final ValueChanged<AgendaEvent> onEdit;
+
+  /// Confirms and deletes; resolves to true if the item was removed.
+  final Future<bool> Function(AgendaEvent event) onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -36,10 +42,10 @@ class AgendaScreen extends StatelessWidget {
           subtitle: controller.data == null
               ? null
               : open == 0
-                  ? 'Nothing coming up'
-                  : open == 1
-                      ? '1 thing coming up'
-                      : '$open things coming up',
+              ? 'Nothing coming up'
+              : open == 1
+              ? '1 thing coming up'
+              : '$open things coming up',
           onRefresh: controller.load,
           children: [
             WorkspaceView(
@@ -53,13 +59,19 @@ class AgendaScreen extends StatelessWidget {
                       child: EmptyState(
                         icon: Icons.event_available_outlined,
                         title: 'Nothing scheduled',
-                        message: 'Add interviews, follow-ups and deadlines so '
+                        message:
+                            'Add interviews, follow-ups and deadlines so '
                             'nothing slips.',
                         actionLabel: 'Add to agenda',
                         onAction: onAdd,
                       ),
                     )
-                  : _GroupedAgenda(events: events, onToggleDone: onToggleDone),
+                  : _GroupedAgenda(
+                      events: events,
+                      onToggleDone: onToggleDone,
+                      onEdit: onEdit,
+                      onDelete: onDelete,
+                    ),
             ),
           ],
         );
@@ -69,10 +81,17 @@ class AgendaScreen extends StatelessWidget {
 }
 
 class _GroupedAgenda extends StatelessWidget {
-  const _GroupedAgenda({required this.events, required this.onToggleDone});
+  const _GroupedAgenda({
+    required this.events,
+    required this.onToggleDone,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final List<AgendaEvent> events;
   final void Function(String id, bool isDone) onToggleDone;
+  final ValueChanged<AgendaEvent> onEdit;
+  final Future<bool> Function(AgendaEvent event) onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -111,9 +130,25 @@ class _GroupedAgenda extends StatelessWidget {
             child: Column(
               children: [
                 for (final event in entry.value)
-                  AgendaTile(
-                    event: event,
-                    onToggleDone: (done) => onToggleDone(event.id, done),
+                  // Tap to edit, swipe left to delete.
+                  Dismissible(
+                    key: ValueKey(event.id),
+                    direction: DismissDirection.endToStart,
+                    confirmDismiss: (_) => onDelete(event),
+                    background: Container(
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: AppSpacing.md),
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      child: Icon(
+                        Icons.delete_outline_rounded,
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                      ),
+                    ),
+                    child: AgendaTile(
+                      event: event,
+                      onToggleDone: (done) => onToggleDone(event.id, done),
+                      onTap: () => onEdit(event),
+                    ),
                   ),
               ],
             ),

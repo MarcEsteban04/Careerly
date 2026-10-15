@@ -35,6 +35,8 @@ class ApplicationsScreen extends StatelessWidget {
     required this.isListingSaved,
     required this.onOpenListing,
     required this.onEditProfile,
+    required this.onDismissListing,
+    required this.onToggleSaveSearch,
   });
 
   final WorkspaceController controller;
@@ -45,6 +47,8 @@ class ApplicationsScreen extends StatelessWidget {
   final bool Function(RankedListing ranked) isListingSaved;
   final ValueChanged<RankedListing> onOpenListing;
   final VoidCallback onEditProfile;
+  final ValueChanged<RankedListing> onDismissListing;
+  final VoidCallback onToggleSaveSearch;
 
   /// Null shows every stage.
   final ApplicationStatus? filter;
@@ -110,6 +114,8 @@ class ApplicationsScreen extends StatelessWidget {
                 isSaved: isListingSaved,
                 onOpenListing: onOpenListing,
                 onEditProfile: onEditProfile,
+                onDismiss: onDismissListing,
+                onToggleSaveSearch: onToggleSaveSearch,
               ),
             ],
           );

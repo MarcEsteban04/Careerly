@@ -6,7 +6,7 @@ A personal career workspace built with Flutter and Supabase.
 
 1. Copy `.env.app.example` to `.env.app` and fill in the Supabase URL and anon/publishable key, plus the JSearch (OpenWeb Ninja) and Jooble keys for job search and the Gemini, Groq and OpenAI keys for resume reading, AI ranking and backup job search (tried in that order; OpenAI is the last resort). Everything in `.env.app` is bundled into the app, which is fine for this personal, sideloaded build; never put the service role key there.
 2. `.env.local` (template: `.env.example`) holds every secret, including ones the app must not ship with (service role key, AI provider keys).
-3. Create the database tables: open the Supabase dashboard → **SQL Editor**, paste the contents of `supabase/migrations/20261016000000_init_dashboard_schema.sql`, and run it.
+3. Create the database tables: open the Supabase dashboard → **SQL Editor** and run each file in `supabase/migrations/` in filename order (each is safe to re-run from the second migration on).
 4. Create your account from the app's sign-up screen (or in the Supabase dashboard under **Authentication → Users**). Afterwards you can turn off public sign-ups under **Authentication → Sign In / Providers**.
 
 ## Run
@@ -40,6 +40,7 @@ lib/
     profile/           Career profile used for matching
     resume/            Resume upload and AI reading
     studio/            AI resume enhancement and cover letters
+    apply/             Application kit and "Did you apply?" tracking
     documents/         Saved resumes and cover letters, PDF export
     settings/          Account sheet
     (each has data/ for models + repositories, presentation/ for UI)

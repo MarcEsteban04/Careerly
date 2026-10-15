@@ -12,13 +12,14 @@ import '../data/agenda_event.dart';
 import '../data/agenda_repository.dart';
 import 'agenda_event_style.dart';
 
-/// Opens the "new interview or reminder" form. [applications] populate the
+/// Opens the interview or reminder form: new, or editing [existing]. [applications] populate the
 /// optional "related application" picker.
 Future<AgendaEvent?> showAgendaEventFormSheet(
   BuildContext context, {
   required AgendaRepository repository,
   required List<JobApplication> applications,
   String? initialApplicationId,
+  AgendaEvent? existing,
 }) {
   return showFormSheet<AgendaEvent>(
     context,
@@ -26,6 +27,7 @@ Future<AgendaEvent?> showAgendaEventFormSheet(
       repository: repository,
       applications: applications,
       initialApplicationId: initialApplicationId,
+      existing: existing,
     ),
   );
 }
@@ -35,11 +37,13 @@ class _AgendaEventForm extends StatefulWidget {
     required this.repository,
     required this.applications,
     this.initialApplicationId,
+    this.existing,
   });
 
   final AgendaRepository repository;
   final List<JobApplication> applications;
   final String? initialApplicationId;
+  final AgendaEvent? existing;
 
   @override
   State<_AgendaEventForm> createState() => _AgendaEventFormState();
@@ -47,12 +51,17 @@ class _AgendaEventForm extends StatefulWidget {
 
 class _AgendaEventFormState extends State<_AgendaEventForm> {
   final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
+  late final _titleController =
+      TextEditingController(text: widget.existing?.title);
 
-  AgendaEventKind _kind = AgendaEventKind.interview;
-  late DateTime _date = DateTime.now().add(const Duration(days: 1));
-  TimeOfDay _time = const TimeOfDay(hour: 10, minute: 0);
-  late String? _applicationId = widget.initialApplicationId;
+  late AgendaEventKind _kind = widget.existing?.kind ?? AgendaEventKind.interview;
+  late DateTime _date =
+      widget.existing?.startsAt ?? DateTime.now().add(const Duration(days: 1));
+  late TimeOfDay _time = widget.existing == null
+      ? const TimeOfDay(hour: 10, minute: 0)
+      : TimeOfDay.fromDateTime(widget.existing!.startsAt);
+  late String? _applicationId =
+      widget.existing?.applicationId ?? widget.initialApplicationId;
   bool _isSubmitting = false;
   String? _errorMessage;
 
@@ -70,7 +79,8 @@ class _AgendaEventFormState extends State<_AgendaEventForm> {
     final picked = await showDatePicker(
       context: context,
       initialDate: _date,
-      firstDate: DateTime(now.year, now.month, now.day),
+      // Past items being edited keep their date selectable.
+      firstDate: _date.isBefore(now) ? _date : DateTime(now.year, now.month, now.day),
       lastDate: DateTime(now.year + 2),
     );
     if (picked != null) setState(() => _date = picked);
@@ -89,12 +99,21 @@ class _AgendaEventFormState extends State<_AgendaEventForm> {
     });
 
     try {
-      final event = await widget.repository.create(
-        kind: _kind,
-        title: _titleController.text.trim(),
-        startsAt: _startsAt,
-        applicationId: _applicationId,
-      );
+      final existing = widget.existing;
+      final event = existing == null
+          ? await widget.repository.create(
+              kind: _kind,
+              title: _titleController.text.trim(),
+              startsAt: _startsAt,
+              applicationId: _applicationId,
+            )
+          : await widget.repository.update(
+              existing.id,
+              kind: _kind,
+              title: _titleController.text.trim(),
+              startsAt: _startsAt,
+              applicationId: _applicationId,
+            );
       if (mounted) Navigator.of(context).pop(event);
     } catch (error) {
       if (mounted) {

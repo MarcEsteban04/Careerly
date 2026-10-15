@@ -11,22 +11,24 @@ import '../data/applications_repository.dart';
 import '../data/job_application.dart';
 import 'application_status_style.dart';
 
-/// Opens the "new application" form. Resolves to the created application, or
-/// null if dismissed.
+/// Opens the application form: new, or editing [existing]. Resolves to the
+/// saved application, or null if dismissed.
 Future<JobApplication?> showApplicationFormSheet(
   BuildContext context, {
   required ApplicationsRepository repository,
+  JobApplication? existing,
 }) {
   return showFormSheet<JobApplication>(
     context,
-    child: _ApplicationForm(repository: repository),
+    child: _ApplicationForm(repository: repository, existing: existing),
   );
 }
 
 class _ApplicationForm extends StatefulWidget {
-  const _ApplicationForm({required this.repository});
+  const _ApplicationForm({required this.repository, this.existing});
 
   final ApplicationsRepository repository;
+  final JobApplication? existing;
 
   @override
   State<_ApplicationForm> createState() => _ApplicationFormState();
@@ -34,14 +36,21 @@ class _ApplicationForm extends StatefulWidget {
 
 class _ApplicationFormState extends State<_ApplicationForm> {
   final _formKey = GlobalKey<FormState>();
-  final _companyController = TextEditingController();
-  final _roleController = TextEditingController();
-  final _salaryController = TextEditingController();
-  final _locationController = TextEditingController();
-  final _linkController = TextEditingController();
+  late final _companyController =
+      TextEditingController(text: widget.existing?.company);
+  late final _roleController = TextEditingController(text: widget.existing?.role);
+  late final _salaryController =
+      TextEditingController(text: widget.existing?.salary);
+  late final _locationController =
+      TextEditingController(text: widget.existing?.location);
+  late final _linkController =
+      TextEditingController(text: widget.existing?.jobUrl);
 
-  ApplicationStatus _status = ApplicationStatus.applied;
-  DateTime _appliedOn = DateTime.now();
+  late ApplicationStatus _status =
+      widget.existing?.status ?? ApplicationStatus.applied;
+  late DateTime _appliedOn = widget.existing?.appliedOn ?? DateTime.now();
+
+  bool get _isEditing => widget.existing != null;
   bool _isSubmitting = false;
   String? _errorMessage;
 
@@ -77,15 +86,29 @@ class _ApplicationFormState extends State<_ApplicationForm> {
         c.text.trim().isEmpty ? null : c.text.trim();
 
     try {
-      final application = await widget.repository.create(
-        company: _companyController.text.trim(),
-        role: _roleController.text.trim(),
-        status: _status,
-        location: optional(_locationController),
-        salary: optional(_salaryController),
-        jobUrl: optional(_linkController),
-        appliedOn: _status == ApplicationStatus.saved ? null : _appliedOn,
-      );
+      final existing = widget.existing;
+      final appliedOn = _status == ApplicationStatus.saved ? null : _appliedOn;
+      final application = existing == null
+          ? await widget.repository.create(
+              company: _companyController.text.trim(),
+              role: _roleController.text.trim(),
+              status: _status,
+              location: optional(_locationController),
+              salary: optional(_salaryController),
+              jobUrl: optional(_linkController),
+              appliedOn: appliedOn,
+            )
+          : await widget.repository.updateDetails(
+              existing.id,
+              ApplicationDetails(
+                company: _companyController.text.trim(),
+                role: _roleController.text.trim(),
+                location: optional(_locationController),
+                salary: optional(_salaryController),
+                jobUrl: optional(_linkController),
+                appliedOn: appliedOn,
+              ),
+            );
       if (mounted) Navigator.of(context).pop(application);
     } catch (error) {
       if (mounted) {
@@ -116,7 +139,7 @@ class _ApplicationFormState extends State<_ApplicationForm> {
             label: 'Company',
             child: TextFormField(
               controller: _companyController,
-              autofocus: true,
+              autofocus: !_isEditing,
               textCapitalization: TextCapitalization.words,
               textInputAction: TextInputAction.next,
               decoration: const InputDecoration(
@@ -141,16 +164,19 @@ class _ApplicationFormState extends State<_ApplicationForm> {
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          LabeledField(
-            label: 'Status',
-            child: ChoiceChipGroup<ApplicationStatus>(
-              values: ApplicationStatus.values,
-              selected: _status,
-              labelOf: (s) => s.label,
-              iconOf: (s) => s.icon,
-              onSelected: (s) => setState(() => _status = s),
+          // Status changes go through "Update status" so the timeline
+          // records them.
+          if (!_isEditing)
+            LabeledField(
+              label: 'Status',
+              child: ChoiceChipGroup<ApplicationStatus>(
+                values: ApplicationStatus.values,
+                selected: _status,
+                labelOf: (s) => s.label,
+                iconOf: (s) => s.icon,
+                onSelected: (s) => setState(() => _status = s),
+              ),
             ),
-          ),
           AnimatedSize(
             duration: const Duration(milliseconds: 200),
             child: _status == ApplicationStatus.saved

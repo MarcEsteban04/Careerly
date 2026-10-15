@@ -38,6 +38,10 @@ class DiscoverHeader extends StatelessWidget {
           controller: searchController,
           onSubmitted: controller.search,
         ),
+        if (controller.savedSearches.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.sm),
+          _SavedSearches(controller: controller, searchController: searchController),
+        ],
         if (controller.suggestions.length > 1) ...[
           const SizedBox(height: AppSpacing.sm),
           _Suggestions(
@@ -85,6 +89,8 @@ class DiscoverResults extends StatelessWidget {
     required this.isSaved,
     required this.onOpenListing,
     required this.onEditProfile,
+    required this.onDismiss,
+    required this.onToggleSaveSearch,
   });
 
   final DiscoverController controller;
@@ -92,6 +98,10 @@ class DiscoverResults extends StatelessWidget {
   final bool Function(RankedListing ranked) isSaved;
   final ValueChanged<RankedListing> onOpenListing;
   final VoidCallback onEditProfile;
+
+  /// "Not interested" (swipe left).
+  final ValueChanged<RankedListing> onDismiss;
+  final VoidCallback onToggleSaveSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -176,18 +186,71 @@ class DiscoverResults extends StatelessWidget {
                 const SizedBox.square(
                   dimension: 14,
                   child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else if (controller.preferences != null)
+                IconButton(
+                  tooltip: controller.isCurrentSearchSaved
+                      ? 'Remove saved search'
+                      : 'Save this search',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onToggleSaveSearch,
+                  icon: Icon(
+                    controller.isCurrentSearchSaved
+                        ? Icons.bookmark_rounded
+                        : Icons.bookmark_add_outlined,
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
             ],
           ),
         ),
         for (final ranked in results) ...[
-          JobListingCard(
-            ranked: ranked,
-            isSaved: isSaved(ranked),
-            onTap: () => onOpenListing(ranked),
+          // Swipe left for "Not interested".
+          Dismissible(
+            key: ValueKey(ranked.listing.dedupeKey),
+            direction: DismissDirection.endToStart,
+            onDismissed: (_) => onDismiss(ranked),
+            background: Container(
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: AppSpacing.lg),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.thumb_down_alt_outlined,
+                    color: theme.colorScheme.onErrorContainer,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'Not interested',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            child: JobListingCard(
+              ranked: ranked,
+              isSaved: isSaved(ranked),
+              onTap: () => onOpenListing(ranked),
+            ),
           ),
           const SizedBox(height: AppSpacing.sm),
         ],
+        Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.xs),
+          child: Text(
+            'Swipe a job left if you\'re not interested.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.only(top: AppSpacing.xs),
           child: Text(
@@ -279,6 +342,63 @@ class _ProfileSummary extends StatelessWidget {
             size: 20,
             color: colorScheme.onSurfaceVariant,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bookmarked searches: tap to run, long-press to remove.
+class _SavedSearches extends StatelessWidget {
+  const _SavedSearches({
+    required this.controller,
+    required this.searchController,
+  });
+
+  final DiscoverController controller;
+  final TextEditingController searchController;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      child: Row(
+        children: [
+          Icon(Icons.bookmark_rounded, size: 16, color: colorScheme.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Text(
+            'Saved',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              fontSize: 13,
+            ),
+          ),
+          for (final search in controller.savedSearches) ...[
+            const SizedBox(width: AppSpacing.xs),
+            Tooltip(
+              message: 'Long-press to remove',
+              child: GestureDetector(
+                onLongPress: () => controller.deleteSavedSearch(search),
+                child: ActionChip(
+                  label: Text(search.label),
+                  onPressed: () {
+                    searchController.text = search.keywords;
+                    controller.runSavedSearch(search);
+                  },
+                  visualDensity: VisualDensity.compact,
+                  shape: const StadiumBorder(),
+                  side: BorderSide(color: colorScheme.outline),
+                  backgroundColor: colorScheme.surface,
+                  labelStyle: theme.textTheme.bodySmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

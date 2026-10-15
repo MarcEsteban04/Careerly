@@ -6,8 +6,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 bool isMissingSchemaError(Object error) =>
     error is PostgrestException &&
     (error.code == 'PGRST205' ||
+        error.code == 'PGRST204' ||
         error.code == '42P01' ||
-        error.message.contains('Could not find the table'));
+        error.code == '42703' ||
+        error.message.contains('Could not find the table') ||
+        error.message.contains('column'));
 
 /// Short, human-friendly copy for data-layer errors.
 String friendlyErrorMessage(Object error) {

@@ -21,6 +21,8 @@ class JobListingScreen extends StatefulWidget {
     required this.onSave,
     required this.onWriteCoverLetter,
     required this.onTailorResume,
+    required this.onApply,
+    required this.onNotInterested,
   });
 
   final RankedListing ranked;
@@ -30,6 +32,12 @@ class JobListingScreen extends StatefulWidget {
   final Future<bool> Function() onSave;
   final VoidCallback onWriteCoverLetter;
   final VoidCallback onTailorResume;
+
+  /// Opens the application kit.
+  final VoidCallback onApply;
+
+  /// Hides this job from future results.
+  final VoidCallback onNotInterested;
 
   @override
   State<JobListingScreen> createState() => _JobListingScreenState();
@@ -97,10 +105,38 @@ class _JobListingScreenState extends State<JobListingScreen> {
                       style: theme.textTheme.titleMedium,
                     ),
                   ),
-                  CircleIconButton(
-                    icon: Icons.open_in_new_rounded,
-                    tooltip: 'Open job post',
-                    onPressed: _apply,
+                  PopupMenuButton<String>(
+                    tooltip: 'More',
+                    onSelected: (value) {
+                      if (value == 'open') _apply();
+                      if (value == 'hide') {
+                        widget.onNotInterested();
+                        Navigator.of(context).maybePop();
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                        value: 'open',
+                        child: ListTile(
+                          leading: Icon(Icons.open_in_new_rounded),
+                          title: Text('Open job post'),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'hide',
+                        child: ListTile(
+                          leading: Icon(Icons.thumb_down_alt_outlined),
+                          title: Text('Not interested'),
+                        ),
+                      ),
+                    ],
+                    child: const IgnorePointer(
+                      child: CircleIconButton(
+                        icon: Icons.more_horiz_rounded,
+                        tooltip: 'More',
+                        onPressed: null,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -219,7 +255,7 @@ class _JobListingScreenState extends State<JobListingScreen> {
               child: PrimaryButton(
                 label: 'Apply',
                 icon: Icons.arrow_outward_rounded,
-                onPressed: _apply,
+                onPressed: widget.onApply,
               ),
             ),
           ],

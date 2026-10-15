@@ -1,19 +1,23 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/ai/ai_chain.dart';
 import '../../../core/ai/providers.dart';
 import '../../../core/config/env.dart';
 import '../../../core/utils/error_message.dart';
+import '../../agenda/data/agenda_event.dart';
 import '../../agenda/data/agenda_repository.dart';
 import '../../agenda/presentation/agenda_event_form_sheet.dart';
 import '../../agenda/presentation/agenda_screen.dart';
+import '../../applications/data/application_event.dart';
 import '../../applications/data/applications_repository.dart';
 import '../../applications/data/job_application.dart';
 import '../../applications/presentation/application_detail_screen.dart';
 import '../../applications/presentation/application_form_sheet.dart';
 import '../../applications/presentation/applications_screen.dart';
+import '../../apply/presentation/apply_confirm_dialog.dart';
+import '../../apply/presentation/apply_kit_sheet.dart';
 import '../../auth/data/app_lock_repository.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../dashboard/presentation/dashboard_screen.dart';
@@ -22,6 +26,7 @@ import '../../discover/data/ai_job_search_client.dart';
 import '../../discover/data/discover_controller.dart';
 import '../../discover/data/jooble_client.dart';
 import '../../discover/data/jsearch_client.dart';
+import '../../discover/data/search_preferences_repository.dart';
 import '../../discover/presentation/job_listing_screen.dart';
 import '../../documents/data/career_document.dart';
 import '../../documents/data/documents_repository.dart';
@@ -57,7 +62,11 @@ class AppShell extends StatefulWidget {
     GoalsRepository? goals,
     this.discover,
     this.studio,
-  })  : applications = applications ?? ApplicationsRepository(),
+    ApplicationEventsRepository? events,
+    Future<bool> Function(Uri url)? openUrl,
+  })  : events = events ?? ApplicationEventsRepository(),
+        openUrl = openUrl ?? _openExternally,
+        applications = applications ?? ApplicationsRepository(),
         agenda = agenda ?? AgendaRepository(),
         goals = goals ?? GoalsRepository();
 
@@ -66,6 +75,13 @@ class AppShell extends StatefulWidget {
   final ApplicationsRepository applications;
   final AgendaRepository agenda;
   final GoalsRepository goals;
+  final ApplicationEventsRepository events;
+
+  /// Opens job application pages; replaceable in tests.
+  final Future<bool> Function(Uri url) openUrl;
+
+  static Future<bool> _openExternally(Uri url) =>
+      launchUrl(url, mode: LaunchMode.externalApplication);
 
   /// Overrides for tests; built from the app config when null.
   final DiscoverController? discover;
@@ -75,7 +91,7 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   static const _navItems = [
     FloatingNavItem(
       icon: Icons.home_outlined,
@@ -125,6 +141,7 @@ class _AppShellState extends State<AppShell> {
         aiSearch: AiJobSearchClient(_ai),
         aiRanker: AiJobRanker(_ai),
         resumeReader: ResumeReader(_ai),
+        preferences: SearchPreferencesRepository(),
       );
 
   late final StudioController _studio = (widget.studio ??
@@ -142,8 +159,24 @@ class _AppShellState extends State<AppShell> {
   final _discoverSearch = TextEditingController();
   JobsSection _jobsSection = JobsSection.tracked;
 
+  /// Set while the user is on a job's application page, so we can ask
+  /// whether they applied when they come back.
+  _PendingApply? _pendingApply;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _confirmPendingApply();
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _workspace.dispose();
     _discover.dispose();
     _studio.dispose();
@@ -201,18 +234,198 @@ class _AppShellState extends State<AppShell> {
 
   /// Adds a found job to the tracker as "Saved".
   Future<bool> _saveListing(RankedListing ranked) async {
-    final job = ranked.listing;
     try {
-      await widget.applications.create(
-        company: job.company,
-        role: job.title,
-        status: ApplicationStatus.saved,
-        location: job.isRemote && job.location == null ? 'Remote' : job.location,
-        jobUrl: job.applyUrl,
-        salary: job.salary,
-      );
+      await _createFromListing(ranked, status: ApplicationStatus.saved);
       await _workspace.load();
       _showMessage('Saved to your tracker');
+      return true;
+    } catch (error) {
+      _showMessage(friendlyErrorMessage(error));
+      return false;
+    }
+  }
+
+  Future<JobApplication> _createFromListing(
+    RankedListing ranked, {
+    required ApplicationStatus status,
+    String? resumeDocumentId,
+    String? coverLetterDocumentId,
+    DateTime? followUpOn,
+  }) {
+    final job = ranked.listing;
+    final context = _contextForListing(ranked);
+    return widget.applications.create(
+      company: job.company,
+      role: job.title,
+      status: status,
+      location: job.isRemote && job.location == null ? 'Remote' : job.location,
+      jobUrl: job.applyUrl,
+      salary: job.salary,
+      appliedOn: status == ApplicationStatus.saved ? null : DateTime.now(),
+      source: job.source,
+      externalId: job.id,
+      jobDescription: context.description,
+      resumeDocumentId: resumeDocumentId,
+      coverLetterDocumentId: coverLetterDocumentId,
+      followUpOn: followUpOn,
+    );
+  }
+
+  Future<void> _dismissListing(RankedListing ranked) async {
+    final error = await _discover.dismiss(ranked.listing);
+    if (!mounted) return;
+    if (error != null) {
+      _showMessage(error);
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Hid ${ranked.listing.title}'),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () => _discover.undoDismiss(ranked.listing),
+          ),
+        ),
+      );
+  }
+
+  Future<void> _toggleSaveSearch() async {
+    final wasSaved = _discover.isCurrentSearchSaved;
+    final error = await _discover.toggleSaveCurrentSearch();
+    _showMessage(error ?? (wasSaved ? 'Search removed' : 'Search saved'));
+  }
+
+  // Applying ------------------------------------------------------------------
+
+  /// Opens the application kit, then the job's application page. When the
+  /// user returns, [_confirmPendingApply] asks whether they applied.
+  Future<void> _startApply({
+    required JobContext job,
+    required String applyUrl,
+    JobApplication? application,
+    RankedListing? listing,
+  }) async {
+    final result = await showApplyKitSheet(context, studio: _studio, job: job);
+    if (!mounted || result == null) return;
+
+    switch (result) {
+      case WriteCoverLetterFirst():
+        _writeCoverLetter(job);
+      case OpenApplication(:final choice):
+        final uri = Uri.tryParse(applyUrl);
+        if (uri == null) {
+          _showMessage("This job doesn't have a valid application link.");
+          return;
+        }
+        _pendingApply = _PendingApply(
+          job: job,
+          application: application,
+          listing: listing,
+          choice: choice,
+        );
+        final opened = await widget.openUrl(uri);
+        if (!opened) {
+          _pendingApply = null;
+          _showMessage("Couldn't open the application page.");
+        }
+    }
+  }
+
+  Future<void> _confirmPendingApply() async {
+    final pending = _pendingApply;
+    if (pending == null || !mounted) return;
+    _pendingApply = null;
+
+    final answer = await showApplyConfirmDialog(
+      context,
+      jobLabel: pending.job.label,
+    );
+    if (answer == null || !mounted) return;
+
+    final followUpOn = answer.followUp
+        ? DateTime.now().add(const Duration(days: 7))
+        : null;
+    try {
+      final existing = pending.application ??
+          (pending.listing == null ? null : _trackedFor(pending.listing!));
+      final JobApplication applied;
+      if (existing != null) {
+        applied = await widget.applications.markApplied(
+          existing,
+          resumeDocumentId: pending.choice.resumeDocumentId,
+          coverLetterDocumentId: pending.choice.coverLetterDocumentId,
+          followUpOn: followUpOn,
+        );
+      } else {
+        applied = await _createFromListing(
+          pending.listing!,
+          status: ApplicationStatus.applied,
+          resumeDocumentId: pending.choice.resumeDocumentId,
+          coverLetterDocumentId: pending.choice.coverLetterDocumentId,
+          followUpOn: followUpOn,
+        );
+      }
+      if (followUpOn != null) {
+        await widget.agenda.create(
+          kind: AgendaEventKind.followUp,
+          title: 'Follow up with ${applied.company}',
+          startsAt: DateTime(followUpOn.year, followUpOn.month, followUpOn.day, 10),
+          applicationId: applied.id,
+        );
+      }
+      await _workspace.load();
+      HapticFeedback.mediumImpact();
+      _showMessage(
+        followUpOn == null
+            ? 'Marked as applied. Good luck!'
+            : "Marked as applied. We'll remind you to follow up in a week.",
+      );
+    } catch (error) {
+      _showMessage(friendlyErrorMessage(error));
+    }
+  }
+
+  // Agenda ----------------------------------------------------------------------
+
+  Future<void> _editAgendaEvent(AgendaEvent event) async {
+    final updated = await showAgendaEventFormSheet(
+      context,
+      repository: widget.agenda,
+      applications: _workspace.data?.applications ?? const [],
+      existing: event,
+    );
+    if (updated == null) return;
+    _showMessage('Agenda item updated');
+    await _workspace.load();
+  }
+
+  Future<bool> _deleteAgendaEvent(AgendaEvent event) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete this item?'),
+        content: Text('"${event.title}" will be removed from your agenda.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return false;
+    try {
+      await widget.agenda.delete(event.id);
+      await _workspace.load();
       return true;
     } catch (error) {
       _showMessage(friendlyErrorMessage(error));
@@ -245,6 +458,13 @@ class _AppShellState extends State<AppShell> {
         onSave: () => _saveListing(ranked),
         onWriteCoverLetter: () => _writeCoverLetter(_contextForListing(ranked)),
         onTailorResume: () => _enhanceResume(_contextForListing(ranked)),
+        onApply: () => _startApply(
+          job: _contextForListing(ranked),
+          applyUrl: ranked.listing.applyUrl,
+          application: _trackedFor(ranked),
+          listing: ranked,
+        ),
+        onNotInterested: () => _dismissListing(ranked),
       ),
     );
   }
@@ -306,6 +526,7 @@ class _AppShellState extends State<AppShell> {
         title: application.role,
         company: application.company,
         location: application.location,
+        description: application.jobDescription,
         applicationId: application.id,
       );
 
@@ -317,6 +538,12 @@ class _AppShellState extends State<AppShell> {
         agenda: widget.agenda,
         onWriteCoverLetter: (a) => _writeCoverLetter(_contextForApplication(a)),
         onTailorResume: (a) => _enhanceResume(_contextForApplication(a)),
+        events: widget.events,
+        onApply: (a) => _startApply(
+          job: _contextForApplication(a),
+          applyUrl: a.jobUrl ?? '',
+          application: a,
+        ),
       ),
     );
   }
@@ -441,11 +668,15 @@ class _AppShellState extends State<AppShell> {
             isListingSaved: _isListingSaved,
             onOpenListing: _openListing,
             onEditProfile: _editCareerProfile,
+            onDismissListing: _dismissListing,
+            onToggleSaveSearch: _toggleSaveSearch,
           ),
           AgendaScreen(
             controller: _workspace,
             onAdd: _addAgendaEvent,
             onToggleDone: _setEventDone,
+            onEdit: _editAgendaEvent,
+            onDelete: _deleteAgendaEvent,
           ),
           GoalsScreen(
             controller: _workspace,
@@ -474,4 +705,23 @@ class _AppShellState extends State<AppShell> {
       ),
     );
   }
+}
+
+/// A job whose application page the user opened from the kit.
+class _PendingApply {
+  const _PendingApply({
+    required this.job,
+    required this.choice,
+    this.application,
+    this.listing,
+  });
+
+  final JobContext job;
+  final ApplyKitChoice choice;
+
+  /// The tracked application, if the job is already in the tracker.
+  final JobApplication? application;
+
+  /// The discovered listing, used to create the application if needed.
+  final RankedListing? listing;
 }

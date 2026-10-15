@@ -11,11 +11,14 @@ import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/segmented_tabs.dart';
 import '../../../core/widgets/tag_pill.dart';
+import '../../agenda/data/agenda_event.dart';
 import '../../agenda/data/agenda_repository.dart';
 import '../../agenda/presentation/agenda_event_form_sheet.dart';
 import '../../agenda/presentation/widgets/agenda_tile.dart';
 import '../../shell/data/workspace_controller.dart';
+import '../data/application_event.dart';
 import '../data/job_application.dart';
+import 'application_form_sheet.dart';
 import 'application_status_style.dart';
 import 'widgets/company_avatar.dart';
 
@@ -27,8 +30,10 @@ class ApplicationDetailScreen extends StatefulWidget {
     required this.applicationId,
     required this.controller,
     required this.agenda,
+    required this.events,
     required this.onWriteCoverLetter,
     required this.onTailorResume,
+    required this.onApply,
   });
 
   final String applicationId;
@@ -36,6 +41,10 @@ class ApplicationDetailScreen extends StatefulWidget {
   final AgendaRepository agenda;
   final ValueChanged<JobApplication> onWriteCoverLetter;
   final ValueChanged<JobApplication> onTailorResume;
+
+  /// Opens the application kit for this job.
+  final ValueChanged<JobApplication> onApply;
+  final ApplicationEventsRepository events;
 
   @override
   State<ApplicationDetailScreen> createState() =>
@@ -181,6 +190,11 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                   onTap: () => Navigator.of(context).pop('open'),
                 ),
               ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Edit details'),
+                onTap: () => Navigator.of(context).pop('edit'),
+              ),
+              ListTile(
                 leading: const Icon(Icons.edit_note_rounded),
                 title: const Text('Write a cover letter'),
                 onTap: () => Navigator.of(context).pop('letter'),
@@ -210,6 +224,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     if (action == 'open') await _openJobPost(application.jobUrl!);
     if (action == 'letter') widget.onWriteCoverLetter(application);
     if (action == 'tailor') widget.onTailorResume(application);
+    if (action == 'edit') await _editDetails(application);
     if (action == 'delete') await _confirmDelete(application);
   }
 
@@ -279,7 +294,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                   _Header(application: application),
                   const SizedBox(height: AppSpacing.lg),
                   SegmentedTabs(
-                    labels: const ['Overview', 'Agenda', 'Notes'],
+                    labels: const ['Overview', 'Timeline', 'Agenda', 'Notes'],
                     selectedIndex: _tab,
                     onSelected: (i) => setState(() => _tab = i),
                   ),
@@ -291,11 +306,13 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                       child: switch (_tab) {
                         0 => _Overview(
                             application: application,
+                            onSetFollowUp: () => _setFollowUp(application),
                             onOpenJobPost: application.jobUrl == null
                                 ? null
                                 : () => _openJobPost(application.jobUrl!),
                           ),
-                        1 => _buildAgenda(application),
+                        1 => _buildTimeline(application),
+                        2 => _buildAgenda(application),
                         _ => _buildNotes(application),
                       },
                     ),
@@ -314,13 +331,111 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
           AppSpacing.lg,
           AppSpacing.sm + bottomInset,
         ),
-        child: PrimaryButton(
-          label: 'Update status',
-          icon: Icons.swap_vert_rounded,
-          isLoading: _isUpdating,
-          onPressed: () => _changeStatus(application),
+        child: Row(
+          children: [
+            if (application.jobUrl != null && !application.isApplied) ...[
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => widget.onApply(application),
+                  icon: const Icon(Icons.send_rounded),
+                  label: const Text('Apply'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+            ],
+            Expanded(
+              flex: 2,
+              child: PrimaryButton(
+                label: 'Update status',
+                icon: Icons.swap_vert_rounded,
+                isLoading: _isUpdating,
+                onPressed: () => _changeStatus(application),
+              ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  Future<void> _editDetails(JobApplication application) async {
+    final updated = await showApplicationFormSheet(
+      context,
+      repository: widget.controller.applications,
+      existing: application,
+    );
+    if (updated == null || !mounted) return;
+    widget.controller.replaceApplication(updated);
+    _showMessage('Details updated');
+  }
+
+  /// Sets (or clears) the follow-up date and adds a reminder for it.
+  Future<void> _setFollowUp(JobApplication application) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      helpText: 'Follow up on',
+      initialDate: application.followUpOn ?? now.add(const Duration(days: 7)),
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: DateTime(now.year + 1),
+    );
+    if (picked == null || !mounted) return;
+    try {
+      final updated =
+          await widget.controller.applications.setFollowUp(application.id, picked);
+      await widget.agenda.create(
+        kind: AgendaEventKind.followUp,
+        title: 'Follow up with ${application.company}',
+        startsAt: DateTime(picked.year, picked.month, picked.day, 10),
+        applicationId: application.id,
+      );
+      widget.controller.replaceApplication(updated);
+      await widget.controller.load();
+      _showMessage('Follow-up set for ${DateFormat('EEE, MMM d').format(picked)}');
+    } catch (error) {
+      _showMessage(friendlyErrorMessage(error));
+    }
+  }
+
+  Widget _buildTimeline(JobApplication application) {
+    return FutureBuilder<List<ApplicationEvent>>(
+      // Refetch whenever the application changes (e.g. a new status).
+      key: ValueKey(application.updatedAt),
+      future: widget.events.fetchFor(application.id),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Padding(
+            padding: EdgeInsets.all(AppSpacing.lg),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final error = snapshot.error;
+        if (error != null) {
+          return AppCard(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: EmptyState(
+              icon: Icons.history_rounded,
+              title: 'Timeline unavailable',
+              message: isMissingSchemaError(error)
+                  ? 'Run the latest database migration to record status '
+                      'history.'
+                  : friendlyErrorMessage(error),
+            ),
+          );
+        }
+        final events = snapshot.data ?? const [];
+        if (events.isEmpty) {
+          return AppCard(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: const EmptyState(
+              icon: Icons.history_rounded,
+              title: 'No history yet',
+              message: 'Status changes from now on appear here.',
+            ),
+          );
+        }
+        return _Timeline(events: events);
+      },
     );
   }
 
@@ -468,10 +583,15 @@ class _Header extends StatelessWidget {
 }
 
 class _Overview extends StatelessWidget {
-  const _Overview({required this.application, required this.onOpenJobPost});
+  const _Overview({
+    required this.application,
+    required this.onOpenJobPost,
+    required this.onSetFollowUp,
+  });
 
   final JobApplication application;
   final VoidCallback? onOpenJobPost;
+  final VoidCallback onSetFollowUp;
 
   static const _stages = [
     ApplicationStatus.saved,
@@ -565,6 +685,41 @@ class _Overview extends StatelessWidget {
           label: 'Added',
           value: dateFormat.format(application.createdAt),
         ),
+        if (application.source != null)
+          _DetailRow(
+            icon: Icons.travel_explore_rounded,
+            label: 'Found via',
+            value: application.source!,
+          ),
+        InkWell(
+          onTap: onSetFollowUp,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          child: Row(
+            children: [
+              Expanded(
+                child: _DetailRow(
+                  icon: Icons.notifications_active_outlined,
+                  label: 'Follow up',
+                  value: application.followUpOn == null
+                      ? 'Set a date'
+                      : dateFormat.format(application.followUpOn!),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xxs),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+        if (application.jobDescription != null) ...[
+          const SizedBox(height: AppSpacing.lg),
+          Text('Job posting', style: theme.textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.xs),
+          _ExpandableText(application.jobDescription!),
+        ],
         if (onOpenJobPost != null) ...[
           const SizedBox(height: AppSpacing.md),
           OutlinedButton.icon(
@@ -665,6 +820,129 @@ class _StatusSheet extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Vertical timeline of an application's history, newest first.
+class _Timeline extends StatelessWidget {
+  const _Timeline({required this.events});
+
+  final List<ApplicationEvent> events;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final format = DateFormat('MMM d, y · h:mm a');
+
+    return Column(
+      children: [
+        for (var i = 0; i < events.length; i++)
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: 28,
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 14,
+                        height: 14,
+                        margin: const EdgeInsets.only(top: 3),
+                        decoration: BoxDecoration(
+                          color: i == 0
+                              ? (events[i].toStatus?.colorIn(theme) ??
+                                  colorScheme.primary)
+                              : colorScheme.surface,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: events[i].toStatus?.colorIn(theme) ??
+                                colorScheme.outline,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                      if (i < events.length - 1)
+                        Expanded(
+                          child: Container(
+                            width: 2,
+                            margin: const EdgeInsets.symmetric(vertical: 2),
+                            color: colorScheme.outline,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          events[i].description,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: i == 0 ? FontWeight.w600 : null,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          format.format(events[i].createdAt),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ExpandableText extends StatefulWidget {
+  const _ExpandableText(this.text);
+
+  final String text;
+
+  @override
+  State<_ExpandableText> createState() => _ExpandableTextState();
+}
+
+class _ExpandableTextState extends State<_ExpandableText> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final long = widget.text.length > 400;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.text,
+          maxLines: !long || _expanded ? null : 6,
+          overflow: !long || _expanded ? null : TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            height: 1.5,
+          ),
+        ),
+        if (long)
+          TextButton(
+            onPressed: () => setState(() => _expanded = !_expanded),
+            style: TextButton.styleFrom(padding: EdgeInsets.zero),
+            child: Text(_expanded ? 'Show less' : 'Read more'),
+          ),
+      ],
     );
   }
 }

@@ -13,7 +13,7 @@ enum ApplicationStatus {
   /// For tight spaces such as the pipeline columns.
   final String shortLabel;
 
-  static ApplicationStatus fromName(String name) => values.firstWhere(
+  static ApplicationStatus fromName(String? name) => values.firstWhere(
         (status) => status.name == name,
         orElse: () => ApplicationStatus.saved,
       );
@@ -32,22 +32,32 @@ class JobApplication {
     this.salary,
     this.notes,
     this.appliedOn,
+    this.source,
+    this.externalId,
+    this.jobDescription,
+    this.followUpOn,
+    this.resumeDocumentId,
+    this.coverLetterDocumentId,
   });
 
   factory JobApplication.fromJson(Map<String, dynamic> json) => JobApplication(
         id: json['id'] as String,
         company: json['company'] as String,
         role: json['role'] as String,
-        status: ApplicationStatus.fromName(json['status'] as String),
+        status: ApplicationStatus.fromName(json['status'] as String?),
         location: json['location'] as String?,
         jobUrl: json['job_url'] as String?,
         salary: json['salary'] as String?,
         notes: json['notes'] as String?,
-        appliedOn: json['applied_on'] == null
-            ? null
-            : DateTime.parse(json['applied_on'] as String),
+        appliedOn: _date(json['applied_on']),
         createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
         updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
+        source: json['source'] as String?,
+        externalId: json['external_id'] as String?,
+        jobDescription: json['job_description'] as String?,
+        followUpOn: _date(json['follow_up_on']),
+        resumeDocumentId: json['resume_document_id'] as String?,
+        coverLetterDocumentId: json['cover_letter_document_id'] as String?,
       );
 
   final String id;
@@ -63,4 +73,23 @@ class JobApplication {
   final DateTime? appliedOn;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// Job board it came from, e.g. "LinkedIn".
+  final String? source;
+
+  /// Listing id from job discovery, to recognize the same posting later.
+  final String? externalId;
+
+  /// The posting's text, kept for tailoring documents.
+  final String? jobDescription;
+  final DateTime? followUpOn;
+
+  /// Documents sent with the application.
+  final String? resumeDocumentId;
+  final String? coverLetterDocumentId;
+
+  bool get isApplied => status != ApplicationStatus.saved;
+
+  static DateTime? _date(Object? value) =>
+      value is String ? DateTime.tryParse(value) : null;
 }
