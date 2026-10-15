@@ -11,6 +11,7 @@ class EmptyState extends StatelessWidget {
     required this.message,
     this.actionLabel,
     this.onAction,
+    this.actionIcon = Icons.add_rounded,
   });
 
   final IconData icon;
@@ -18,6 +19,7 @@ class EmptyState extends StatelessWidget {
   final String message;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final IconData actionIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +54,7 @@ class EmptyState extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           FilledButton.tonalIcon(
             onPressed: onAction,
-            icon: const Icon(Icons.add_rounded, size: 18),
+            icon: Icon(actionIcon, size: 18),
             label: Text(actionLabel!),
             style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
           ),

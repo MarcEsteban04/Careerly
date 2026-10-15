@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/date_utils.dart';
-import '../../../applications/data/job_application.dart';
-import '../../../applications/presentation/application_status_style.dart';
+import '../../data/job_application.dart';
+import '../application_status_style.dart';
 
 /// Recent application row: company initial, role, company, status.
 class ApplicationTile extends StatelessWidget {

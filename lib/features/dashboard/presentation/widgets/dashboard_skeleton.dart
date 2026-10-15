@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 
-/// Gently pulsing placeholder blocks shaped like the dashboard, shown while
-/// it loads.
+/// Gently pulsing placeholder blocks shaped like the dashboard sections,
+/// shown while data loads.
 class DashboardSkeleton extends StatefulWidget {
   const DashboardSkeleton({super.key});
 
@@ -53,15 +53,15 @@ class _DashboardSkeletonState extends State<DashboardSkeleton>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            block(172, radius: AppRadius.lg + 4),
+            block(84),
             const SizedBox(height: AppSpacing.xl),
             block(20, radius: AppRadius.sm),
             const SizedBox(height: AppSpacing.sm),
-            block(132),
+            block(168),
             const SizedBox(height: AppSpacing.xl),
             block(20, radius: AppRadius.sm),
             const SizedBox(height: AppSpacing.sm),
-            block(180),
+            block(150),
           ],
         ),
       ),

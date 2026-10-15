@@ -7,7 +7,7 @@ import 'package:careerly/features/agenda/data/agenda_repository.dart';
 import 'package:careerly/features/applications/data/applications_repository.dart';
 import 'package:careerly/features/applications/data/job_application.dart';
 import 'package:careerly/features/auth/data/app_lock_repository.dart';
-import 'package:careerly/features/dashboard/presentation/dashboard_screen.dart';
+import 'package:careerly/features/shell/presentation/app_shell.dart';
 import 'package:careerly/features/goals/data/goal.dart';
 import 'package:careerly/features/goals/data/goals_repository.dart';
 
@@ -157,7 +157,7 @@ class FakeDashboardAuth extends FakeAuthRepository {
   );
 }
 
-Future<void> pumpDashboard(
+Future<void> pumpShell(
   WidgetTester tester, {
   required FakeApplicationsRepository applications,
   FakeAgendaRepository? agenda,
@@ -175,7 +175,7 @@ Future<void> pumpDashboard(
   await tester.pumpWidget(
     MaterialApp(
       theme: theme ?? AppTheme.light,
-      home: DashboardScreen(
+      home: AppShell(
         authRepository: FakeDashboardAuth(),
         appLock: FakeAppLock(),
         applications: applications,

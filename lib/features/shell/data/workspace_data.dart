@@ -3,9 +3,9 @@ import '../../agenda/data/agenda_event.dart';
 import '../../applications/data/job_application.dart';
 import '../../goals/data/goal.dart';
 
-/// Everything the dashboard shows, plus the numbers derived from it.
-class DashboardData {
-  const DashboardData({
+/// Snapshot of the user's workspace, plus the numbers derived from it.
+class WorkspaceData {
+  const WorkspaceData({
     required this.applications,
     required this.upcoming,
     required this.goals,
@@ -38,12 +38,33 @@ class DashboardData {
         .length;
   }
 
-  DashboardData copyWith({
+  /// Applications sent on each day of this week, Monday first.
+  List<int> appliedPerWeekday([DateTime? now]) {
+    final weekStart = (now ?? DateTime.now()).startOfWeek;
+    final counts = List.filled(7, 0);
+    for (final application in applications) {
+      final day = application.appliedOn?.dateOnly;
+      if (day == null) continue;
+      final index = day.difference(weekStart).inDays;
+      if (index >= 0 && index < 7) counts[index]++;
+    }
+    return counts;
+  }
+
+  /// The soonest open agenda item, if any.
+  AgendaEvent? get nextEvent {
+    for (final event in upcoming) {
+      if (!event.isDone) return event;
+    }
+    return null;
+  }
+
+  WorkspaceData copyWith({
     List<JobApplication>? applications,
     List<AgendaEvent>? upcoming,
     List<Goal>? goals,
   }) =>
-      DashboardData(
+      WorkspaceData(
         applications: applications ?? this.applications,
         upcoming: upcoming ?? this.upcoming,
         goals: goals ?? this.goals,

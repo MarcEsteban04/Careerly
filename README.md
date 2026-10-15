@@ -30,7 +30,8 @@ lib/
     widgets/           Reusable UI components
   features/
     auth/              Login, sign-up, biometric unlock
-    dashboard/         Home dashboard
+    shell/             Tabs, floating nav bar, shared workspace data
+    dashboard/         Home tab
     applications/      Job application tracker
     agenda/            Interviews and reminders
     goals/             Career goals

@@ -3,8 +3,8 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/date_utils.dart';
-import '../../../agenda/data/agenda_event.dart';
-import '../../../agenda/presentation/agenda_event_style.dart';
+import '../../data/agenda_event.dart';
+import '../agenda_event_style.dart';
 
 /// One agenda row: date badge, title, details, and a done checkbox.
 class AgendaTile extends StatelessWidget {
@@ -19,9 +19,10 @@ class AgendaTile extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final isToday = event.startsAt.isSameDay(DateTime.now());
     final badgeColor = isToday ? colorScheme.primary : colorScheme.onSurface;
-    // Time first so it never gets truncated; the icon already shows the kind.
+    // The date badge and day heading already show the day; the icon shows
+    // the kind.
     final details = [
-      '${event.startsAt.relativeDayLabel()}, ${event.startsAt.timeLabel}',
+      event.startsAt.timeLabel,
       if (event.company != null) event.company!,
     ].join(' · ');
 

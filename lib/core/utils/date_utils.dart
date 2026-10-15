@@ -24,4 +24,15 @@ extension CareerlyDateUtils on DateTime {
 
   /// e.g. "2:30 PM".
   String get timeLabel => DateFormat.jm().format(this);
+
+  /// Short countdown such as "in 45 min", "in 5 hr" or "in 3 days".
+  String countdownLabel([DateTime? now]) {
+    final reference = now ?? DateTime.now();
+    final remaining = difference(reference);
+    if (remaining.isNegative) return 'Now';
+    if (remaining.inMinutes < 60) return 'in ${remaining.inMinutes} min';
+    if (remaining.inHours < 24) return 'in ${remaining.inHours} hr';
+    final days = dateOnly.difference(reference.dateOnly).inDays;
+    return days == 1 ? 'Tomorrow' : 'in $days days';
+  }
 }

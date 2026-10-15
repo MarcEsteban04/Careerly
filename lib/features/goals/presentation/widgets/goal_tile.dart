@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../goals/data/goal.dart';
+import '../../data/goal.dart';
 
 /// Goal with a progress ring and a +1 button.
 class GoalTile extends StatelessWidget {
