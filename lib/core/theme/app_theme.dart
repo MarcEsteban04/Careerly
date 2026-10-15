@@ -27,7 +27,7 @@ abstract final class AppTheme {
         outline: AppColors.darkOutline,
         text: AppColors.darkText,
         textMuted: AppColors.darkTextMuted,
-        primary: AppColors.brandBright,
+        primary: AppColors.brandOnDark,
         onPrimary: AppColors.darkBackground,
         error: AppColors.errorDark,
       );
