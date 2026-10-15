@@ -18,12 +18,14 @@ Future<AgendaEvent?> showAgendaEventFormSheet(
   BuildContext context, {
   required AgendaRepository repository,
   required List<JobApplication> applications,
+  String? initialApplicationId,
 }) {
   return showFormSheet<AgendaEvent>(
     context,
     child: _AgendaEventForm(
       repository: repository,
       applications: applications,
+      initialApplicationId: initialApplicationId,
     ),
   );
 }
@@ -32,10 +34,12 @@ class _AgendaEventForm extends StatefulWidget {
   const _AgendaEventForm({
     required this.repository,
     required this.applications,
+    this.initialApplicationId,
   });
 
   final AgendaRepository repository;
   final List<JobApplication> applications;
+  final String? initialApplicationId;
 
   @override
   State<_AgendaEventForm> createState() => _AgendaEventFormState();
@@ -48,7 +52,7 @@ class _AgendaEventFormState extends State<_AgendaEventForm> {
   AgendaEventKind _kind = AgendaEventKind.interview;
   late DateTime _date = DateTime.now().add(const Duration(days: 1));
   TimeOfDay _time = const TimeOfDay(hour: 10, minute: 0);
-  String? _applicationId;
+  late String? _applicationId = widget.initialApplicationId;
   bool _isSubmitting = false;
   String? _errorMessage;
 

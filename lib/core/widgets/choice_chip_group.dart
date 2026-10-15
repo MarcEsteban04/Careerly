@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_spacing.dart';
+import 'pill_chip.dart';
 
-/// Single-select row of chips for a small set of options.
+/// Single-select set of pill chips for a small set of options.
 class ChoiceChipGroup<T> extends StatelessWidget {
   const ChoiceChipGroup({
     super.key,
@@ -26,14 +27,11 @@ class ChoiceChipGroup<T> extends StatelessWidget {
       runSpacing: AppSpacing.xs,
       children: [
         for (final value in values)
-          ChoiceChip(
-            label: Text(labelOf(value)),
-            avatar: iconOf == null || value == selected
-                ? null
-                : Icon(iconOf!(value), size: 18),
+          PillChip(
+            label: labelOf(value),
+            leading: iconOf == null ? null : Icon(iconOf!(value)),
             selected: value == selected,
-            showCheckmark: true,
-            onSelected: (_) => onSelected(value),
+            onTap: () => onSelected(value),
           ),
       ],
     );

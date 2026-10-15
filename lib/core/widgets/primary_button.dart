@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_spacing.dart';
 
-/// Full-width primary action with a soft brand glow. Swaps its label for a
-/// spinner while busy.
+/// Full-width blue pill for the main action, with a soft glow. Swaps its
+/// label for a spinner while busy.
 class PrimaryButton extends StatelessWidget {
   const PrimaryButton({
     super.key,
@@ -24,10 +24,10 @@ class PrimaryButton extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderRadius: BorderRadius.circular(999),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.primary.withValues(alpha: 0.28),
+            color: colorScheme.primary.withValues(alpha: 0.30),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),

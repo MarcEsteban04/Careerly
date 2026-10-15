@@ -25,6 +25,19 @@ extension CareerlyDateUtils on DateTime {
   /// e.g. "2:30 PM".
   String get timeLabel => DateFormat.jm().format(this);
 
+  /// Short past-time label such as "30 min ago", "5 hr ago" or "3 days ago".
+  String agoLabel([DateTime? now]) {
+    final reference = now ?? DateTime.now();
+    final elapsed = reference.difference(this);
+    if (elapsed.inMinutes < 1) return 'Just now';
+    if (elapsed.inMinutes < 60) return '${elapsed.inMinutes} min ago';
+    if (elapsed.inHours < 24) return '${elapsed.inHours} hr ago';
+    final days = reference.dateOnly.difference(dateOnly).inDays;
+    if (days == 1) return 'Yesterday';
+    if (days < 30) return '$days days ago';
+    return DateFormat('MMM d, y').format(this);
+  }
+
   /// Short countdown such as "in 45 min", "in 5 hr" or "in 3 days".
   String countdownLabel([DateTime? now]) {
     final reference = now ?? DateTime.now();

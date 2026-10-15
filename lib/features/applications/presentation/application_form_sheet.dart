@@ -36,6 +36,7 @@ class _ApplicationFormState extends State<_ApplicationForm> {
   final _formKey = GlobalKey<FormState>();
   final _companyController = TextEditingController();
   final _roleController = TextEditingController();
+  final _salaryController = TextEditingController();
   final _locationController = TextEditingController();
   final _linkController = TextEditingController();
 
@@ -48,6 +49,7 @@ class _ApplicationFormState extends State<_ApplicationForm> {
   void dispose() {
     _companyController.dispose();
     _roleController.dispose();
+    _salaryController.dispose();
     _locationController.dispose();
     _linkController.dispose();
     super.dispose();
@@ -80,6 +82,7 @@ class _ApplicationFormState extends State<_ApplicationForm> {
         role: _roleController.text.trim(),
         status: _status,
         location: optional(_locationController),
+        salary: optional(_salaryController),
         jobUrl: optional(_linkController),
         appliedOn: _status == ApplicationStatus.saved ? null : _appliedOn,
       );
@@ -163,6 +166,18 @@ class _ApplicationFormState extends State<_ApplicationForm> {
                       ),
                     ),
                   ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          LabeledField(
+            label: 'Salary (optional)',
+            child: TextFormField(
+              controller: _salaryController,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                hintText: r'e.g. $4,000/month',
+                prefixIcon: Icon(Icons.payments_outlined),
+              ),
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           LabeledField(

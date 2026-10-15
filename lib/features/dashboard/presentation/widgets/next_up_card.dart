@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../../../../core/widgets/app_card.dart';
-import '../../../../core/widgets/brand_sky.dart';
 import '../../../agenda/data/agenda_event.dart';
 import '../../../agenda/presentation/agenda_event_style.dart';
 
@@ -46,10 +45,10 @@ class NextUpCard extends StatelessWidget {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              gradient: BrandSky.gradient,
+              color: colorScheme.primary,
               borderRadius: BorderRadius.circular(AppRadius.md),
             ),
-            child: Icon(event.kind.icon, color: Colors.white),
+            child: Icon(event.kind.icon, color: colorScheme.onPrimary),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(

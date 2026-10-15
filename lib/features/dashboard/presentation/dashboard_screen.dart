@@ -1,115 +1,236 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/circle_icon_button.dart';
+import '../../../core/widgets/emphasis_text.dart';
 import '../../../core/widgets/empty_state.dart';
-import '../../../core/widgets/scroll_aware_status_bar.dart';
+import '../../../core/widgets/header_wash.dart';
+import '../../../core/widgets/pill_chip.dart';
+import '../../../core/widgets/search_pill.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/staggered_reveal.dart';
 import '../../../core/widgets/tab_page.dart';
 import '../../applications/data/job_application.dart';
-import '../../applications/presentation/widgets/application_tile.dart';
-import '../../goals/data/goal.dart';
+import '../../applications/presentation/widgets/job_card.dart';
 import '../../shell/data/workspace_controller.dart';
 import '../../shell/data/workspace_data.dart';
 import '../../shell/presentation/widgets/workspace_view.dart';
-import 'widgets/ai_studio_banner.dart';
-import 'widgets/dashboard_hero.dart';
 import 'widgets/dashboard_skeleton.dart';
-import 'widgets/goals_carousel.dart';
 import 'widgets/next_up_card.dart';
-import 'widgets/pipeline_card.dart';
-import 'widgets/weekly_activity_card.dart';
 
-/// Home tab: this week at a glance, what's next, and shortcuts into the
-/// other tabs.
-class DashboardScreen extends StatelessWidget {
+/// Home tab: greeting, search, what's next, and your applications by stage.
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({
     super.key,
     required this.controller,
-    required this.firstName,
+    required this.name,
     required this.initial,
     required this.onAccountTap,
+    required this.onSearchTap,
+    required this.onOpenApplication,
+    required this.onSeeAllApplications,
+    required this.onOpenAgenda,
     required this.onAddApplication,
     required this.onAddAgendaEvent,
-    required this.onAddGoal,
     required this.onEventDone,
-    required this.onGoalIncrement,
-    required this.onOpenApplications,
-    required this.onOpenAgenda,
   });
 
   final WorkspaceController controller;
-  final String? firstName;
+  final String? name;
   final String initial;
   final VoidCallback onAccountTap;
+  final VoidCallback onSearchTap;
+  final ValueChanged<String> onOpenApplication;
+
+  /// Opens the Jobs tab, filtered to a stage (or everything when null).
+  final ValueChanged<ApplicationStatus?> onSeeAllApplications;
+  final VoidCallback onOpenAgenda;
   final VoidCallback onAddApplication;
   final VoidCallback onAddAgendaEvent;
-  final VoidCallback onAddGoal;
   final ValueChanged<String> onEventDone;
-  final ValueChanged<Goal> onGoalIncrement;
 
-  /// Opens the Jobs tab, optionally filtered to one stage.
-  final ValueChanged<ApplicationStatus?> onOpenApplications;
-  final VoidCallback onOpenAgenda;
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
 
-  static const _recentPreview = 4;
+class _DashboardScreenState extends State<DashboardScreen> {
+  static const _sheetRadius = 28.0;
+  static const _preview = 5;
+  static const _categories = [
+    ApplicationStatus.saved,
+    ApplicationStatus.applied,
+    ApplicationStatus.interviewing,
+    ApplicationStatus.offer,
+  ];
+
+  ApplicationStatus? _category;
 
   @override
   Widget build(BuildContext context) {
-    return ScrollAwareStatusBar(
-      // Roughly where the hero's bottom edge passes under the status bar.
-      threshold: 260,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
       child: RefreshIndicator(
-        onRefresh: controller.load,
+        onRefresh: widget.controller.load,
         edgeOffset: MediaQuery.paddingOf(context).top,
-        child: ListenableBuilder(
-          listenable: controller,
-          builder: (context, _) {
-            final data = controller.data;
-            return ListView(
-              padding: EdgeInsets.only(
-                bottom:
-                    kFloatingNavClearance + MediaQuery.paddingOf(context).bottom,
-              ),
-              children: [
-                DashboardHero(
-                  firstName: firstName,
-                  initial: initial,
-                  onAccountTap: onAccountTap,
-                  stats: data == null
-                      ? null
-                      : HeroStats(
-                          appliedThisWeek: data.appliedThisWeek(),
-                          interviewsNextWeek: data.interviewsNextWeek(),
-                          offers: data.countWith(ApplicationStatus.offer),
-                        ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                Center(
+        child: ListView(
+          padding: EdgeInsets.only(
+            bottom: kFloatingNavClearance + MediaQuery.paddingOf(context).bottom,
+          ),
+          children: [
+            HeaderWash(
+              child: SafeArea(
+                bottom: false,
+                child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 760),
-                    child: WorkspaceView(
-                      controller: controller,
-                      loading: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                        child: DashboardSkeleton(),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        AppSpacing.md,
+                        AppSpacing.lg,
+                        AppSpacing.lg + _sheetRadius,
                       ),
-                      builder: (context, data) => _buildSections(context, data),
+                      child: _buildHeader(context),
                     ),
                   ),
                 ),
+              ),
+            ),
+            Transform.translate(
+              offset: const Offset(0, -_sheetRadius),
+              child: _buildSheet(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return ListenableBuilder(
+      listenable: widget.controller,
+      builder: (context, _) {
+        final dueSoon = widget.controller.data?.upcoming
+                .where(
+                  (e) =>
+                      !e.isDone &&
+                      e.startsAt.isBefore(
+                        DateTime.now().add(const Duration(days: 1)),
+                      ),
+                )
+                .length ??
+            0;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Semantics(
+                  button: true,
+                  label: 'Account',
+                  child: InkResponse(
+                    onTap: widget.onAccountTap,
+                    radius: 28,
+                    child: CircleAvatar(
+                      radius: 24,
+                      backgroundColor: colorScheme.primary,
+                      child: Text(
+                        widget.initial,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: colorScheme.onPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Welcome back',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: colorScheme.onSurfaceVariant),
+                      ),
+                      Text(
+                        widget.name ?? 'there',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ],
+                  ),
+                ),
+                CircleIconButton(
+                  icon: Icons.notifications_none_rounded,
+                  tooltip: dueSoon == 0
+                      ? 'Agenda'
+                      : 'Agenda, $dueSoon due in the next day',
+                  badge: dueSoon,
+                  onPressed: widget.onOpenAgenda,
+                ),
               ],
-            );
-          },
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            EmphasisText(
+              "Let's get you **hired** for the job you **deserve**!",
+              style: theme.textTheme.headlineMedium?.copyWith(fontSize: 28),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            SearchPill(
+              hint: 'Search your applications',
+              onTap: widget.onSearchTap,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSheet(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(_sheetRadius),
+        ),
+        border: Border(top: BorderSide(color: colorScheme.outline)),
+      ),
+      padding: const EdgeInsets.only(top: AppSpacing.lg),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: WorkspaceView(
+            controller: widget.controller,
+            loading: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              child: DashboardSkeleton(),
+            ),
+            builder: _buildSections,
+          ),
         ),
       ),
     );
   }
 
   Widget _buildSections(BuildContext context, WorkspaceData data) {
-    final today = DateTime.now();
     final nextEvent = data.nextEvent;
+    final category = _category;
+    final visible = category == null
+        ? data.applications
+        : data.applications.where((a) => a.status == category).toList();
     var index = 0;
 
     Widget section(Widget child, {bool padded = true}) => StaggeredReveal(
@@ -122,111 +243,106 @@ class DashboardScreen extends StatelessWidget {
               : child,
         );
 
-    const gap = SizedBox(height: AppSpacing.xl);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         section(
-          NextUpCard(
-            event: nextEvent,
-            onDone: () {
-              if (nextEvent != null) onEventDone(nextEvent.id);
-            },
-            onSchedule: onAddAgendaEvent,
-            onSeeAgenda: onOpenAgenda,
-          ),
-        ),
-        gap,
-        section(
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SectionHeader(title: 'This week'),
-              WeeklyActivityCard(
-                perWeekday: data.appliedPerWeekday(today),
-                todayIndex: today.weekday - 1,
-              ),
-            ],
-          ),
-        ),
-        gap,
-        section(
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SectionHeader(
-                title: 'Pipeline',
-                actionLabel: 'See all',
+                title: 'Up next',
+                actionLabel: 'Agenda',
                 actionIcon: Icons.chevron_right_rounded,
                 trailingIcon: true,
-                onAction: () => onOpenApplications(null),
+                onAction: widget.onOpenAgenda,
               ),
-              PipelineCard(
-                countOf: data.countWith,
-                onStageTap: onOpenApplications,
+              NextUpCard(
+                event: nextEvent,
+                onDone: () {
+                  if (nextEvent != null) widget.onEventDone(nextEvent.id);
+                },
+                onSchedule: widget.onAddAgendaEvent,
+                onSeeAgenda: widget.onOpenAgenda,
               ),
             ],
           ),
         ),
-        gap,
+        const SizedBox(height: AppSpacing.lg),
+        section(const SectionHeader(title: 'Category')),
         section(
-          SectionHeader(title: 'Goals', actionLabel: 'Add', onAction: onAddGoal),
-        ),
-        section(
-          GoalsCarousel(
-            goals: data.goals,
-            onIncrement: onGoalIncrement,
-            onAdd: onAddGoal,
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: Row(
+              children: [
+                PillChip(
+                  label: 'All',
+                  selected: category == null,
+                  onTap: () => setState(() => _category = null),
+                ),
+                for (final status in _categories) ...[
+                  const SizedBox(width: AppSpacing.xs),
+                  PillChip(
+                    label: status.label,
+                    selected: category == status,
+                    onTap: () => setState(() => _category = status),
+                  ),
+                ],
+              ],
+            ),
           ),
           padded: false,
         ),
-        gap,
-        section(const AiStudioBanner()),
-        gap,
+        const SizedBox(height: AppSpacing.lg),
         section(
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SectionHeader(
-                title: 'Recent applications',
-                actionLabel: data.applications.isEmpty ? 'Add' : 'See all',
-                actionIcon: data.applications.isEmpty
-                    ? Icons.add_rounded
-                    : Icons.chevron_right_rounded,
-                trailingIcon: data.applications.isNotEmpty,
-                onAction: data.applications.isEmpty
-                    ? onAddApplication
-                    : () => onOpenApplications(null),
-              ),
-              AppCard(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.xs,
-                ),
-                child: data.applications.isEmpty
-                    ? Padding(
-                        padding:
-                            const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                        child: EmptyState(
+          SectionHeader(
+            title: 'Your applications',
+            actionLabel: data.applications.isEmpty ? 'Add' : 'See All',
+            actionIcon: Icons.add_rounded,
+            trailingIcon: data.applications.isNotEmpty,
+            showIcon: data.applications.isEmpty,
+            onAction: data.applications.isEmpty
+                ? widget.onAddApplication
+                : () => widget.onSeeAllApplications(category),
+          ),
+        ),
+        section(
+          visible.isEmpty
+              ? AppCard(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.lg,
+                  ),
+                  child: data.applications.isEmpty
+                      ? EmptyState(
                           icon: Icons.work_outline_rounded,
                           title: 'No applications yet',
                           message: 'Track every role you save or apply for, '
                               'all in one place.',
                           actionLabel: 'Add application',
-                          onAction: onAddApplication,
+                          onAction: widget.onAddApplication,
+                        )
+                      : EmptyState(
+                          icon: Icons.filter_list_rounded,
+                          title: 'Nothing in ${category!.label}',
+                          message: 'Applications show up here as you move '
+                              'them along.',
                         ),
-                      )
-                    : Column(
-                        children: [
-                          for (final application
-                              in data.applications.take(_recentPreview))
-                            ApplicationTile(application: application),
-                        ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final application in visible.take(_preview)) ...[
+                      JobCard(
+                        application: application,
+                        nextEvent: data.nextEventFor(application.id),
+                        onTap: () => widget.onOpenApplication(application.id),
                       ),
-              ),
-            ],
-          ),
+                      const SizedBox(height: AppSpacing.sm),
+                    ],
+                  ],
+                ),
         ),
       ],
     );

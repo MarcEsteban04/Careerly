@@ -141,7 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
         : hour >= 12 && hour < 18
             ? 'Good afternoon'
             : 'Good evening';
-    return firstName == null ? base : '$base, $firstName';
+    return firstName == null ? '$base,\nwelcome **back**' : '$base,\n**$firstName**';
   }
 
   static String? _validateEmail(String? value) {
@@ -158,8 +158,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final account = _account;
+
     return AuthScaffold(
-      heroHeightFactor: 0.4,
+      headline: _greeting(DateTime.now(), account?.firstName),
+      subtitle: account == null
+          ? 'Sign in to pick up where you left off.'
+          : 'Enter your password to continue.',
       builder: (context, reveal) => _buildForm(reveal),
     );
   }
@@ -177,27 +182,6 @@ class _LoginScreenState extends State<LoginScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            reveal(
-              0.35,
-              0.85,
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _greeting(DateTime.now(), account?.firstName),
-                    style: theme.textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    account == null
-                        ? 'Sign in to continue to your workspace.'
-                        : 'Welcome back. Enter your password to continue.',
-                    style: theme.textTheme.bodyLarge?.copyWith(color: muted),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
             reveal(
               0.45,
               0.95,

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/utils/error_message.dart';
 import '../../agenda/data/agenda_repository.dart';
 import '../../applications/data/applications_repository.dart';
+import '../../applications/data/job_application.dart';
 import '../../goals/data/goal.dart';
 import '../../goals/data/goals_repository.dart';
 import 'workspace_data.dart';
@@ -77,6 +78,42 @@ class WorkspaceController extends ChangeNotifier {
     } catch (error) {
       _data = before;
       notifyListeners();
+      return friendlyErrorMessage(error);
+    }
+  }
+
+  /// Applies a saved change to one application.
+  void replaceApplication(JobApplication updated) {
+    final before = _data;
+    if (before == null) return;
+    _data = before.copyWith(
+      applications: [
+        for (final a in before.applications) a.id == updated.id ? updated : a,
+      ],
+    );
+    notifyListeners();
+  }
+
+  /// Deletes an application. Returns an error message on failure.
+  Future<String?> deleteApplication(String id) async {
+    final before = _data;
+    try {
+      await applications.delete(id);
+      if (before != null) {
+        _data = before.copyWith(
+          applications: [
+            for (final a in before.applications)
+              if (a.id != id) a,
+          ],
+          upcoming: [
+            for (final e in before.upcoming)
+              if (e.applicationId != id) e,
+          ],
+        );
+        notifyListeners();
+      }
+      return null;
+    } catch (error) {
       return friendlyErrorMessage(error);
     }
   }

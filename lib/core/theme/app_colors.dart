@@ -1,33 +1,36 @@
 import 'package:flutter/material.dart';
 
-/// Brand palette, sampled from the Careerly logo. Screens should read colors
-/// from `Theme.of(context)`; only brand surfaces (e.g. the login hero) use
-/// these directly.
+/// Palette. Screens should read colors from `Theme.of(context)`; the few
+/// brand surfaces that sit outside the color scheme (header wash, nav bar)
+/// read these directly.
 abstract final class AppColors {
-  // Logo blues, from the tile's top-left highlight to its bottom-right shade.
-  static const brand = Color(0xFF1C45DF);
-  static const brandBright = Color(0xFF1D56F5);
-  static const brandDeep = Color(0xFF1E29A8);
-  static const brandNight = Color(0xFF0D1260);
-  static const brandOnDark = Color(0xFF7D97FF);
+  // Primary blue, in the family of the logo's tile.
+  static const brand = Color(0xFF2563EB);
+  static const brandOnDark = Color(0xFF6E9BFF);
 
-  // Logo arrow and star.
-  static const amber = Color(0xFFFBA335);
-  static const gold = Color(0xFFFBC43E);
+  /// Near-black for selected chips and the nav bar.
+  static const ink = Color(0xFF111318);
 
-  static const lightBackground = Color(0xFFF6F7FB);
+  // Soft wash behind headers.
+  static const washTop = Color(0xFFD8E5FF);
+  static const washBottom = Color(0xFFF6F9FF);
+  static const washTopDark = Color(0xFF15213D);
+  static const washBottomDark = Color(0xFF0B0C10);
+
+  static const lightBackground = Color(0xFFFFFFFF);
   static const lightSurface = Color(0xFFFFFFFF);
-  static const lightField = Color(0xFFF2F4FA);
-  static const lightOutline = Color(0xFFE2E6F0);
-  static const lightText = Color(0xFF0F1430);
-  static const lightTextMuted = Color(0xFF5E6378);
+  static const lightMuted = Color(0xFFF3F4F6);
+  static const lightOutline = Color(0xFFE6E7EB);
+  static const lightText = Color(0xFF111318);
+  static const lightTextMuted = Color(0xFF6B7280);
 
-  static const darkBackground = Color(0xFF0A0C16);
-  static const darkSurface = Color(0xFF12141F);
-  static const darkField = Color(0xFF1B1E2C);
-  static const darkOutline = Color(0xFF2A2E40);
-  static const darkText = Color(0xFFF2F3F8);
-  static const darkTextMuted = Color(0xFF9AA0B8);
+  static const darkBackground = Color(0xFF0B0C10);
+  static const darkSurface = Color(0xFF121318);
+  static const darkMuted = Color(0xFF1C1E25);
+  static const darkOutline = Color(0xFF282A33);
+  static const darkText = Color(0xFFF3F4F6);
+  static const darkTextMuted = Color(0xFF9CA3AF);
+  static const darkNav = Color(0xFF1C1E25);
 
   static const success = Color(0xFF067647);
   static const successDark = Color(0xFF47CD89);

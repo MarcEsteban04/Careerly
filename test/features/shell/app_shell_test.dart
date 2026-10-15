@@ -2,61 +2,68 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:careerly/core/widgets/pill_chip.dart';
 import 'package:careerly/features/applications/data/job_application.dart';
 import 'package:careerly/features/shell/data/workspace_data.dart';
 
 import 'shell_test_utils.dart';
 
 void main() {
-  Future<FakeGoalsRepository> pumpWithSample(WidgetTester tester) async {
+  Future<({FakeApplicationsRepository applications, FakeGoalsRepository goals})>
+      pumpWithSample(WidgetTester tester) async {
     final sample = sampleDashboardData(DateTime.now());
+    final applications = FakeApplicationsRepository(sample.applications);
     final goals = FakeGoalsRepository(sample.goals);
     await pumpShell(
       tester,
-      applications: FakeApplicationsRepository(sample.applications),
+      applications: applications,
       agenda: FakeAgendaRepository(sample.agenda),
       goals: goals,
     );
-    return goals;
+    return (applications: applications, goals: goals);
+  }
+
+  Future<void> tapChip(WidgetTester tester, String label) async {
+    final chip = find.widgetWithText(PillChip, label);
+    await tester.ensureVisible(chip);
+    await tester.pumpAndSettle();
+    await tester.tap(chip);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> openTab(WidgetTester tester, String name) async {
+    await tester.tap(find.byTooltip(name));
+    await tester.pumpAndSettle();
   }
 
   group('dashboard', () {
     testWidgets('empty account shows friendly empty states', (tester) async {
       await pumpShell(tester, applications: FakeApplicationsRepository());
 
-      expect(find.textContaining(', Marc'), findsOneWidget);
-      expect(find.text("Let's get your first application in this week."),
-          findsOneWidget);
+      expect(find.text('Marc Esteban'), findsOneWidget);
+      expect(find.textContaining('hired'), findsOneWidget);
       expect(find.text("You're all clear"), findsOneWidget);
-      await tester.scrollUntilVisible(
-        find.text('No applications yet'),
-        300,
-        scrollable: find.byType(Scrollable).first,
-      );
       expect(find.text('No applications yet'), findsOneWidget);
     });
 
-    testWidgets('spotlights the next event and shows goals', (tester) async {
+    testWidgets('spotlights the next event and lists applications',
+        (tester) async {
       await pumpWithSample(tester);
 
       expect(find.text('Portfolio review'), findsOneWidget);
       expect(find.textContaining('NEXT UP'), findsOneWidget);
-      expect(find.text('Apply to jobs'), findsOneWidget);
-      expect(find.text('3 of 5 · This week'), findsOneWidget);
+      expect(find.text('Product Designer'), findsWidgets);
+      // The interview linked to Linear is flagged on its card.
+      expect(find.textContaining('INTERVIEW · TODAY'), findsOneWidget);
     });
 
-    testWidgets('logging goal progress updates it immediately',
-        (tester) async {
-      final goals = await pumpWithSample(tester);
+    testWidgets('category chips filter the list', (tester) async {
+      await pumpWithSample(tester);
 
-      final button = find.byTooltip('Log progress').first;
-      await tester.ensureVisible(button);
-      await tester.pumpAndSettle();
-      await tester.tap(button);
-      await tester.pumpAndSettle();
+      await tapChip(tester, 'Offer');
 
-      expect(find.text('4 of 5 · This week'), findsWidgets);
-      expect(goals.progress['g1'], 4);
+      expect(find.text('Design Engineer'), findsOneWidget);
+      expect(find.text('Senior UI Designer'), findsNothing);
     });
 
     testWidgets('explains the missing database setup', (tester) async {
@@ -76,29 +83,23 @@ void main() {
     testWidgets('tabs switch screens', (tester) async {
       await pumpWithSample(tester);
 
-      await tester.tap(find.text('Jobs'));
-      await tester.pumpAndSettle();
+      await openTab(tester, 'Jobs');
       expect(find.text('6 roles tracked'), findsOneWidget);
 
-      await tester.tap(find.text('Agenda'));
-      await tester.pumpAndSettle();
+      await openTab(tester, 'Agenda');
       expect(find.text('3 things coming up'), findsOneWidget);
 
-      await tester.tap(find.text('Goals'));
-      await tester.pumpAndSettle();
+      await openTab(tester, 'Goals');
       expect(find.text('1 of 2 complete'), findsOneWidget);
     });
 
-    testWidgets('pipeline stage opens Jobs filtered to it', (tester) async {
+    testWidgets('search on the Jobs tab filters by text', (tester) async {
       await pumpWithSample(tester);
+      await openTab(tester, 'Jobs');
 
-      final offerStage = find.bySemanticsLabel(RegExp(r'^1 Offer\.'));
-      await tester.ensureVisible(offerStage);
-      await tester.pumpAndSettle();
-      await tester.tap(offerStage);
+      await tester.enterText(find.byType(TextField), 'figma');
       await tester.pumpAndSettle();
 
-      expect(find.text('6 roles tracked'), findsOneWidget);
       expect(find.text('Design Engineer'), findsOneWidget);
       expect(find.text('Senior UI Designer'), findsNothing);
     });
@@ -106,13 +107,11 @@ void main() {
     testWidgets('+ on the Jobs tab opens the application form',
         (tester) async {
       await pumpWithSample(tester);
+      await openTab(tester, 'Jobs');
 
-      await tester.tap(find.text('Jobs'));
-      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('New application'));
       await tester.pumpAndSettle();
 
-      expect(find.text('New application'), findsWidgets);
       expect(find.text('Save application'), findsOneWidget);
     });
 
@@ -123,6 +122,66 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Interview or reminder'), findsOneWidget);
+    });
+  });
+
+  group('goals', () {
+    testWidgets('logging progress updates it immediately', (tester) async {
+      final fakes = await pumpWithSample(tester);
+      await openTab(tester, 'Goals');
+
+      await tester.tap(find.byTooltip('Log progress'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('4 of 5 · This week'), findsOneWidget);
+      expect(fakes.goals.progress['g1'], 4);
+    });
+  });
+
+  group('application detail', () {
+    Future<void> openFigma(WidgetTester tester) async {
+      await tapChip(tester, 'Offer');
+      await tester.tap(find.text('Design Engineer'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('shows the role with progress and details', (tester) async {
+      await pumpWithSample(tester);
+      await openFigma(tester);
+
+      expect(find.text('Application'), findsOneWidget);
+      expect(find.text('Progress'), findsOneWidget);
+      expect(find.text(r'$6,500/month'), findsWidgets);
+      expect(find.text('Update status'), findsOneWidget);
+    });
+
+    testWidgets('updates the status', (tester) async {
+      await pumpWithSample(tester);
+      await openFigma(tester);
+
+      await tester.tap(find.text('Update status'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Rejected').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Moved to Rejected'), findsOneWidget);
+      expect(find.text('This application is closed.'), findsOneWidget);
+    });
+
+    testWidgets('deletes after confirmation', (tester) async {
+      final fakes = await pumpWithSample(tester);
+      await openFigma(tester);
+
+      await tester.tap(find.byTooltip('More'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete application'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      expect(fakes.applications.deleted, ['a3']);
+      expect(find.text('Application'), findsNothing);
+      expect(find.text('Deleted Design Engineer'), findsOneWidget);
     });
   });
 
@@ -137,8 +196,9 @@ void main() {
 
     expect(data.countWith(ApplicationStatus.applied), 2);
     expect(data.appliedThisWeek(now), 2); // today + yesterday
-    expect(data.appliedPerWeekday(now), [0, 0, 0, 1, 1, 0, 0]);
     expect(data.interviewsNextWeek(now), 1);
     expect(data.nextEvent?.title, 'Portfolio review');
+    expect(data.nextEventFor('a1')?.title, 'Portfolio review');
+    expect(data.nextEventFor('a2'), isNull);
   });
 }

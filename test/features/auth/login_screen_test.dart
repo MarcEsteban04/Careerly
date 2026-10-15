@@ -72,7 +72,7 @@ void main() {
       ),
     );
 
-    expect(find.textContaining(', Marc'), findsOneWidget);
+    expect(find.textContaining(',\nMarc'), findsOneWidget);
     expect(find.text('Marc Esteban'), findsOneWidget);
     expect(find.byType(TextFormField), findsOneWidget);
 

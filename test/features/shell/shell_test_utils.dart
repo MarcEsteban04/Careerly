@@ -26,6 +26,27 @@ class FakeApplicationsRepository implements ApplicationsRepository {
   }
 
   @override
+  Future<JobApplication> updateStatus(
+    JobApplication application,
+    ApplicationStatus status,
+  ) async =>
+      JobApplication(
+        id: application.id,
+        company: application.company,
+        role: application.role,
+        status: status,
+        location: application.location,
+        appliedOn: application.appliedOn ?? DateTime.now(),
+        createdAt: application.createdAt,
+        updatedAt: DateTime.now(),
+      );
+
+  final deleted = <String>[];
+
+  @override
+  Future<void> delete(String id) async => deleted.add(id);
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -88,6 +109,7 @@ class FakeDashboardAuth extends FakeAuthRepository {
     ApplicationStatus status, {
     int daysAgo = 0,
     String? location,
+    String? salary,
   }) {
     final date = now.subtract(Duration(days: daysAgo));
     return JobApplication(
@@ -96,6 +118,7 @@ class FakeDashboardAuth extends FakeAuthRepository {
       role: role,
       status: status,
       location: location,
+      salary: salary,
       appliedOn: status == ApplicationStatus.saved ? null : date,
       createdAt: date,
       updatedAt: date,
@@ -109,7 +132,7 @@ class FakeDashboardAuth extends FakeAuthRepository {
       app('a2', 'Canva', 'Senior UI Designer', ApplicationStatus.applied,
           daysAgo: 1, location: 'Manila'),
       app('a3', 'Figma', 'Design Engineer', ApplicationStatus.offer,
-          daysAgo: 9, location: 'Remote'),
+          daysAgo: 9, location: 'Remote', salary: r'$6,500/month'),
       app('a4', 'Notion', 'UX Designer', ApplicationStatus.saved, daysAgo: 2),
       app('a5', 'Stripe', 'Product Designer', ApplicationStatus.applied,
           daysAgo: 12),
@@ -122,6 +145,7 @@ class FakeDashboardAuth extends FakeAuthRepository {
         kind: AgendaEventKind.interview,
         title: 'Portfolio review',
         startsAt: DateTime(now.year, now.month, now.day, 23, 30),
+        applicationId: 'a1',
         company: 'Linear',
       ),
       AgendaEvent(

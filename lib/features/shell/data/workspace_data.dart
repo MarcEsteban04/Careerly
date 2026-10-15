@@ -38,17 +38,19 @@ class WorkspaceData {
         .length;
   }
 
-  /// Applications sent on each day of this week, Monday first.
-  List<int> appliedPerWeekday([DateTime? now]) {
-    final weekStart = (now ?? DateTime.now()).startOfWeek;
-    final counts = List.filled(7, 0);
-    for (final application in applications) {
-      final day = application.appliedOn?.dateOnly;
-      if (day == null) continue;
-      final index = day.difference(weekStart).inDays;
-      if (index >= 0 && index < 7) counts[index]++;
+  /// The soonest open agenda item linked to an application, if any.
+  AgendaEvent? nextEventFor(String applicationId) {
+    for (final event in upcoming) {
+      if (!event.isDone && event.applicationId == applicationId) return event;
     }
-    return counts;
+    return null;
+  }
+
+  JobApplication? applicationById(String id) {
+    for (final application in applications) {
+      if (application.id == id) return application;
+    }
+    return null;
   }
 
   /// The soonest open agenda item, if any.

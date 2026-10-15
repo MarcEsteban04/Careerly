@@ -118,8 +118,15 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final pending = _pendingConfirmationEmail != null;
+
     return AuthScaffold(
-      compactHero: true,
+      headline: pending
+          ? 'Almost **there**'
+          : "Let's get you **hired** for the job you **deserve**",
+      subtitle: pending
+          ? 'One quick step to confirm your email.'
+          : 'Create your private Careerly workspace.',
       onBack: _isSubmitting ? null : () => Navigator.of(context).maybePop(),
       builder: (context, reveal) => AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
@@ -142,25 +149,6 @@ class _SignupScreenState extends State<SignupScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            reveal(
-              0.35,
-              0.85,
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Create your account',
-                    style: theme.textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    'Set up your private Careerly workspace.',
-                    style: theme.textTheme.bodyLarge?.copyWith(color: muted),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
             reveal(
               0.45,
               0.95,
@@ -318,7 +306,11 @@ class _SignupScreenState extends State<SignupScreen> {
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
-        Text('Check your inbox', style: theme.textTheme.headlineMedium),
+        Text(
+          'Check your inbox',
+          style: theme.textTheme.titleLarge
+              ?.copyWith(fontWeight: FontWeight.w700),
+        ),
         const SizedBox(height: AppSpacing.xs),
         Text.rich(
           TextSpan(

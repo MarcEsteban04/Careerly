@@ -67,32 +67,34 @@ class _UnlockScreenState extends State<UnlockScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final title = widget.firstName == null
-        ? 'Welcome back'
-        : 'Welcome back, ${widget.firstName}';
+    final colorScheme = Theme.of(context).colorScheme;
 
     return AuthScaffold(
-      heroHeightFactor: 0.45,
+      headline: widget.firstName == null
+          ? 'Welcome **back**'
+          : 'Welcome back,\n**${widget.firstName}**',
+      subtitle: 'Careerly is locked. Unlock to pick up where you left off.',
       builder: (context, reveal) => Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           reveal(
-            0.35,
-            0.85,
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: theme.textTheme.headlineMedium),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'Careerly is locked. Unlock to pick up where you left off.',
-                  style: theme.textTheme.bodyLarge
-                      ?.copyWith(color: colorScheme.onSurfaceVariant),
+            0.3,
+            0.8,
+            Center(
+              child: Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.10),
+                  shape: BoxShape.circle,
                 ),
-              ],
+                child: Icon(
+                  Icons.fingerprint_rounded,
+                  size: 40,
+                  color: colorScheme.primary,
+                ),
+              ),
             ),
           ),
           AnimatedSize(

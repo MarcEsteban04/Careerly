@@ -29,6 +29,8 @@ class JobApplication {
     required this.updatedAt,
     this.location,
     this.jobUrl,
+    this.salary,
+    this.notes,
     this.appliedOn,
   });
 
@@ -39,6 +41,8 @@ class JobApplication {
         status: ApplicationStatus.fromName(json['status'] as String),
         location: json['location'] as String?,
         jobUrl: json['job_url'] as String?,
+        salary: json['salary'] as String?,
+        notes: json['notes'] as String?,
         appliedOn: json['applied_on'] == null
             ? null
             : DateTime.parse(json['applied_on'] as String),
@@ -52,6 +56,8 @@ class JobApplication {
   final ApplicationStatus status;
   final String? location;
   final String? jobUrl;
+  final String? salary;
+  final String? notes;
 
   /// Calendar date the application was sent (no time component).
   final DateTime? appliedOn;

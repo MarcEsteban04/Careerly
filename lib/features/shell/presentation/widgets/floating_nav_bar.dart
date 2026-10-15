@@ -1,11 +1,8 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/widgets/brand_sky.dart';
 
 class FloatingNavItem {
   const FloatingNavItem({
@@ -19,8 +16,8 @@ class FloatingNavItem {
   final String label;
 }
 
-/// Frosted, pill-shaped tab bar that floats above content, with a separate
-/// round "+" button to its right.
+/// Dark pill tab bar that floats above content, with the active tab in a
+/// sliding blue pill, plus a separate round "+" button to its right.
 class FloatingNavBar extends StatelessWidget {
   const FloatingNavBar({
     super.key,
@@ -31,7 +28,7 @@ class FloatingNavBar extends StatelessWidget {
     this.addTooltip = 'Add',
   });
 
-  static const height = 64.0;
+  static const height = 68.0;
 
   final List<FloatingNavItem> items;
   final int selectedIndex;
@@ -74,84 +71,69 @@ class _TabPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final radius = BorderRadius.circular(FloatingNavBar.height / 2);
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    const inset = 6.0;
+    const inset = 8.0;
 
-    return DecoratedBox(
+    return Container(
+      height: FloatingNavBar.height,
       decoration: BoxDecoration(
+        color: isDark ? AppColors.darkNav : AppColors.ink,
         borderRadius: radius,
+        border: isDark
+            ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+            : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.10),
-            blurRadius: 28,
+            color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.22),
+            blurRadius: 24,
             offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: Container(
-            height: FloatingNavBar.height,
-            decoration: BoxDecoration(
-              color: colorScheme.surface.withValues(alpha: isDark ? 0.78 : 0.86),
-              borderRadius: radius,
-              border: Border.all(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : colorScheme.outlineVariant,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final itemWidth = constraints.maxWidth / bar.items.length;
+          return Stack(
+            children: [
+              AnimatedPositioned(
+                duration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : const Duration(milliseconds: 320),
+                curve: Curves.easeOutCubic,
+                left: itemWidth * bar.selectedIndex + inset,
+                top: inset,
+                bottom: inset,
+                width: itemWidth - inset * 2,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.brand,
+                    borderRadius: BorderRadius.circular(
+                      FloatingNavBar.height / 2 - inset,
+                    ),
+                  ),
+                ),
               ),
-            ),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final itemWidth = constraints.maxWidth / bar.items.length;
-                return Stack(
-                  children: [
-                    AnimatedPositioned(
-                      duration: reduceMotion
-                          ? Duration.zero
-                          : const Duration(milliseconds: 320),
-                      curve: Curves.easeOutBack,
-                      left: itemWidth * bar.selectedIndex + inset,
-                      top: inset,
-                      bottom: inset,
-                      width: itemWidth - inset * 2,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: colorScheme.primary.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(
-                            FloatingNavBar.height / 2 - inset,
-                          ),
-                        ),
+              Row(
+                children: [
+                  for (var i = 0; i < bar.items.length; i++)
+                    Expanded(
+                      child: _TabButton(
+                        item: bar.items[i],
+                        selected: i == bar.selectedIndex,
+                        onTap: () {
+                          if (i != bar.selectedIndex) {
+                            HapticFeedback.selectionClick();
+                          }
+                          bar.onSelected(i);
+                        },
                       ),
                     ),
-                    Row(
-                      children: [
-                        for (var i = 0; i < bar.items.length; i++)
-                          Expanded(
-                            child: _TabButton(
-                              item: bar.items[i],
-                              selected: i == bar.selectedIndex,
-                              onTap: () {
-                                if (i != bar.selectedIndex) {
-                                  HapticFeedback.selectionClick();
-                                }
-                                bar.onSelected(i);
-                              },
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        ),
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -170,43 +152,29 @@ class _TabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = selected
-        ? theme.colorScheme.primary
-        : theme.colorScheme.onSurfaceVariant;
-
-    return Semantics(
-      selected: selected,
-      button: true,
-      label: item.label,
-      excludeSemantics: true,
-      child: InkResponse(
-        onTap: onTap,
-        highlightShape: BoxShape.rectangle,
-        containedInkWell: true,
-        radius: 40,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedSwitcher(
+    return Tooltip(
+      message: item.label,
+      child: Semantics(
+        selected: selected,
+        button: true,
+        label: item.label,
+        excludeSemantics: true,
+        child: InkResponse(
+          onTap: onTap,
+          radius: 32,
+          child: Center(
+            child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
               child: Icon(
                 selected ? item.selectedIcon : item.icon,
                 key: ValueKey(selected),
-                color: color,
+                color: selected
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.62),
                 size: 24,
               ),
             ),
-            const SizedBox(height: 2),
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 200),
-              style: theme.textTheme.labelSmall!.copyWith(
-                color: color,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              ),
-              child: Text(item.label, maxLines: 1),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -221,8 +189,6 @@ class _AddButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const size = FloatingNavBar.height;
-
     return Tooltip(
       message: tooltip,
       child: Semantics(
@@ -232,7 +198,6 @@ class _AddButton extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: BrandSky.gradient,
             boxShadow: [
               BoxShadow(
                 color: AppColors.brand.withValues(alpha: 0.40),
@@ -242,7 +207,7 @@ class _AddButton extends StatelessWidget {
             ],
           ),
           child: Material(
-            type: MaterialType.transparency,
+            color: AppColors.brand,
             shape: const CircleBorder(),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
@@ -251,7 +216,7 @@ class _AddButton extends StatelessWidget {
                 onPressed();
               },
               child: const SizedBox.square(
-                dimension: size,
+                dimension: FloatingNavBar.height,
                 child: Icon(Icons.add_rounded, color: Colors.white, size: 30),
               ),
             ),

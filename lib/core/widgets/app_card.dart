@@ -8,6 +8,7 @@ class AppCard extends StatelessWidget {
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(AppSpacing.md),
+    this.color,
     this.onTap,
   });
 
@@ -15,13 +16,16 @@ class AppCard extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final VoidCallback? onTap;
 
+  /// Defaults to the surface color.
+  final Color? color;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final radius = BorderRadius.circular(AppRadius.lg);
+    final radius = BorderRadius.circular(AppRadius.md + 2);
 
     return Material(
-      color: colorScheme.surface,
+      color: color ?? colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: radius,
         side: BorderSide(color: colorScheme.outlineVariant),

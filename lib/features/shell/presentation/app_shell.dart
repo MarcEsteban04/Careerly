@@ -5,6 +5,7 @@ import '../../agenda/presentation/agenda_event_form_sheet.dart';
 import '../../agenda/presentation/agenda_screen.dart';
 import '../../applications/data/applications_repository.dart';
 import '../../applications/data/job_application.dart';
+import '../../applications/presentation/application_detail_screen.dart';
 import '../../applications/presentation/application_form_sheet.dart';
 import '../../applications/presentation/applications_screen.dart';
 import '../../auth/data/app_lock_repository.dart';
@@ -47,8 +48,8 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   static const _navItems = [
     FloatingNavItem(
-      icon: Icons.space_dashboard_outlined,
-      selectedIcon: Icons.space_dashboard_rounded,
+      icon: Icons.home_outlined,
+      selectedIcon: Icons.home_rounded,
       label: 'Home',
     ),
     FloatingNavItem(
@@ -76,10 +77,14 @@ class _AppShellState extends State<AppShell> {
 
   _Tab _tab = _Tab.home;
   ApplicationStatus? _jobsFilter;
+  final _jobsSearch = TextEditingController();
+  final _jobsSearchFocus = FocusNode();
 
   @override
   void dispose() {
     _workspace.dispose();
+    _jobsSearch.dispose();
+    _jobsSearchFocus.dispose();
     super.dispose();
   }
 
@@ -89,6 +94,26 @@ class _AppShellState extends State<AppShell> {
         _jobsFilter = filter;
         _tab = _Tab.jobs;
       });
+
+  /// From the dashboard's search pill: jump to Jobs with the search focused.
+  void _openJobsSearch() {
+    setState(() => _tab = _Tab.jobs);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _jobsSearchFocus.requestFocus(),
+    );
+  }
+
+  void _openApplication(String id) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ApplicationDetailScreen(
+          applicationId: id,
+          controller: _workspace,
+          agenda: widget.agenda,
+        ),
+      ),
+    );
+  }
 
   void _showMessage(String? message) {
     if (message == null || !mounted) return;
@@ -182,7 +207,7 @@ class _AppShellState extends State<AppShell> {
         children: [
           DashboardScreen(
             controller: _workspace,
-            firstName: name?.split(RegExp(r'\s+')).first,
+            name: name,
             initial:
                 (name ?? email).characters.firstOrNull?.toUpperCase() ?? '?',
             onAccountTap: () => showAccountSheet(
@@ -190,18 +215,21 @@ class _AppShellState extends State<AppShell> {
               authRepository: widget.authRepository,
               appLock: widget.appLock,
             ),
+            onSearchTap: _openJobsSearch,
+            onOpenApplication: _openApplication,
+            onSeeAllApplications: _openJobs,
             onAddApplication: _addApplication,
             onAddAgendaEvent: _addAgendaEvent,
-            onAddGoal: _addGoal,
             onEventDone: (id) => _setEventDone(id, true),
-            onGoalIncrement: _incrementGoal,
-            onOpenApplications: _openJobs,
             onOpenAgenda: () => _select(_Tab.agenda),
           ),
           ApplicationsScreen(
             controller: _workspace,
             filter: _jobsFilter,
             onFilterChanged: (filter) => setState(() => _jobsFilter = filter),
+            searchController: _jobsSearch,
+            searchFocusNode: _jobsSearchFocus,
+            onOpenApplication: _openApplication,
             onAdd: _addApplication,
           ),
           AgendaScreen(

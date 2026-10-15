@@ -3,92 +3,134 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/pill_chip.dart';
+import '../../../core/widgets/search_pill.dart';
 import '../../../core/widgets/tab_page.dart';
 import '../../shell/data/workspace_controller.dart';
 import '../../shell/presentation/widgets/workspace_view.dart';
 import '../data/job_application.dart';
-import 'application_status_style.dart';
-import 'widgets/application_tile.dart';
+import 'widgets/job_card.dart';
 
-/// Jobs tab: every application, filterable by stage.
+/// Jobs tab: every application, searchable and filterable by stage.
 class ApplicationsScreen extends StatelessWidget {
   const ApplicationsScreen({
     super.key,
     required this.controller,
     required this.filter,
     required this.onFilterChanged,
+    required this.searchController,
+    required this.searchFocusNode,
+    required this.onOpenApplication,
     required this.onAdd,
   });
 
   final WorkspaceController controller;
 
-  /// Null shows every application.
+  /// Null shows every stage.
   final ApplicationStatus? filter;
   final ValueChanged<ApplicationStatus?> onFilterChanged;
+  final TextEditingController searchController;
+  final FocusNode searchFocusNode;
+  final ValueChanged<String> onOpenApplication;
   final VoidCallback onAdd;
+
+  static bool _matches(JobApplication a, String query) {
+    if (query.isEmpty) return true;
+    final q = query.toLowerCase();
+    return a.role.toLowerCase().contains(q) ||
+        a.company.toLowerCase().contains(q) ||
+        (a.location?.toLowerCase().contains(q) ?? false);
+  }
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: controller,
+      listenable: Listenable.merge([controller, searchController]),
       builder: (context, _) {
-        final applications = controller.data?.applications ?? const [];
-        final visible = filter == null
-            ? applications
-            : applications.where((a) => a.status == filter).toList();
+        final data = controller.data;
+        final applications = data?.applications ?? const <JobApplication>[];
+        final query = searchController.text.trim();
+        final visible = applications
+            .where((a) => filter == null || a.status == filter)
+            .where((a) => _matches(a, query))
+            .toList();
 
         return TabPage(
           title: 'Applications',
-          subtitle: controller.data == null
+          subtitle: data == null
               ? null
               : applications.length == 1
                   ? '1 role tracked'
                   : '${applications.length} roles tracked',
           onRefresh: controller.load,
-          header: _FilterBar(
-            applications: applications,
-            selected: filter,
-            onSelected: onFilterChanged,
+          header: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SearchPill(
+                hint: 'Search roles or companies',
+                controller: searchController,
+                focusNode: searchFocusNode,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              _FilterBar(
+                applications: applications,
+                selected: filter,
+                onSelected: onFilterChanged,
+              ),
+            ],
           ),
           children: [
             WorkspaceView(
               controller: controller,
-              builder: (context, _) => AppCard(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.xs,
-                ),
-                child: visible.isEmpty
-                    ? Padding(
-                        padding:
-                            const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-                        child: applications.isEmpty
-                            ? EmptyState(
-                                icon: Icons.work_outline_rounded,
-                                title: 'No applications yet',
-                                message: 'Track every role you save or apply '
-                                    'for, all in one place.',
-                                actionLabel: 'Add application',
-                                onAction: onAdd,
-                              )
-                            : EmptyState(
-                                icon: filter!.icon,
-                                title: 'Nothing in ${filter!.label}',
-                                message: 'Applications move here as you '
-                                    'update their status.',
-                              ),
-                      )
-                    : Column(
-                        children: [
-                          for (final application in visible)
-                            ApplicationTile(application: application),
-                        ],
+              builder: (context, data) => visible.isEmpty
+                  ? AppCard(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: AppSpacing.lg,
                       ),
-              ),
+                      child: _buildEmpty(applications.isEmpty, query),
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final application in visible) ...[
+                          JobCard(
+                            application: application,
+                            nextEvent: data.nextEventFor(application.id),
+                            onTap: () => onOpenApplication(application.id),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                        ],
+                      ],
+                    ),
             ),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildEmpty(bool noApplications, String query) {
+    if (noApplications) {
+      return EmptyState(
+        icon: Icons.work_outline_rounded,
+        title: 'No applications yet',
+        message: 'Track every role you save or apply for, all in one place.',
+        actionLabel: 'Add application',
+        onAction: onAdd,
+      );
+    }
+    if (query.isNotEmpty) {
+      return EmptyState(
+        icon: Icons.search_off_rounded,
+        title: 'No matches for "$query"',
+        message: 'Try a different role, company or location.',
+      );
+    }
+    return EmptyState(
+      icon: Icons.filter_list_rounded,
+      title: 'Nothing in ${filter!.label}',
+      message: 'Applications show up here as you move them along.',
     );
   }
 }
@@ -109,26 +151,22 @@ class _FilterBar extends StatelessWidget {
     int count(ApplicationStatus s) =>
         applications.where((a) => a.status == s).length;
 
-    // Bleed to the screen edges so chips scroll under the page padding.
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       clipBehavior: Clip.none,
       child: Row(
         children: [
-          ChoiceChip(
-            label: Text('All ${applications.length}'),
+          PillChip(
+            label: 'All ${applications.length}',
             selected: selected == null,
-            onSelected: (_) => onSelected(null),
+            onTap: () => onSelected(null),
           ),
           for (final status in ApplicationStatus.values) ...[
             const SizedBox(width: AppSpacing.xs),
-            ChoiceChip(
-              avatar: selected == status
-                  ? null
-                  : Icon(status.icon, size: 16, color: status.colorIn(Theme.of(context))),
-              label: Text('${status.label} ${count(status)}'),
+            PillChip(
+              label: '${status.label} ${count(status)}',
               selected: selected == status,
-              onSelected: (_) => onSelected(status),
+              onTap: () => onSelected(status),
             ),
           ],
         ],

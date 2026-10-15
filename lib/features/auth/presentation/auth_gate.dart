@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/header_wash.dart';
 import '../../shell/presentation/app_shell.dart';
 import '../data/app_lock_repository.dart';
 import '../data/auth_repository.dart';
@@ -125,9 +125,8 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final child = switch (_status) {
-      _GateStatus.loading => const ColoredBox(
+      _GateStatus.loading => const HeaderWash(
           key: ValueKey('loading'),
-          color: AppColors.brandNight,
           child: SizedBox.expand(),
         ),
       _GateStatus.signedOut => LoginScreen(
@@ -180,8 +179,7 @@ class _LockedViewState extends State<_LockedView> {
       future: _account,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const ColoredBox(
-            color: AppColors.brandNight,
+          return const HeaderWash(
             child: SizedBox.expand(),
           );
         }

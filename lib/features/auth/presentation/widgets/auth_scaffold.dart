@@ -2,34 +2,34 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/theme/app_spacing.dart';
-import 'auth_hero.dart';
+import '../../../../core/widgets/circle_icon_button.dart';
+import '../../../../core/widgets/emphasis_text.dart';
+import '../../../../core/widgets/header_wash.dart';
 
 /// Fades and lifts [child] in during the screen's intro, between [begin] and
 /// [end] (fractions of the intro).
 typedef AuthReveal = Widget Function(double begin, double end, Widget child);
 
-/// Shared layout for auth screens: brand hero on top with the content on a
-/// rounded panel overlapping it, or side by side on wide screens. Plays a
-/// staggered intro unless the system asks to reduce motion.
+/// Shared layout for auth screens: logo and a bold headline on a soft wash,
+/// with the form on a white sheet below. On wide screens the whole thing
+/// becomes a centered card. Plays a staggered intro unless the system asks
+/// to reduce motion.
 class AuthScaffold extends StatefulWidget {
   const AuthScaffold({
     super.key,
+    required this.headline,
     required this.builder,
+    this.subtitle,
     this.onBack,
-    this.heroHeightFactor = 0,
-    this.compactHero = false,
   });
 
+  /// Headline; wrap words in `**` to make them bold.
+  final String headline;
+  final String? subtitle;
   final Widget Function(BuildContext context, AuthReveal reveal) builder;
 
-  /// Shows a back button over the hero when set.
+  /// Shows a back button when set.
   final VoidCallback? onBack;
-
-  /// Minimum hero height as a fraction of the screen (stacked layout only).
-  final double heroHeightFactor;
-
-  /// Always use the smaller hero, e.g. for longer forms.
-  final bool compactHero;
 
   @override
   State<AuthScaffold> createState() => _AuthScaffoldState();
@@ -38,11 +38,12 @@ class AuthScaffold extends StatefulWidget {
 class _AuthScaffoldState extends State<AuthScaffold>
     with SingleTickerProviderStateMixin {
   static const _wideBreakpoint = 840.0;
-  static const _panelRadius = 32.0;
+  static const _sheetRadius = 28.0;
+  static const _logoAsset = 'assets/icons/careerly_logo.png';
 
   late final _intro = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 900),
+    duration: const Duration(milliseconds: 800),
   );
 
   @override
@@ -69,91 +70,63 @@ class _AuthScaffoldState extends State<AuthScaffold>
     return FadeTransition(
       opacity: curve,
       child: SlideTransition(
-        position: Tween(begin: const Offset(0, 0.12), end: Offset.zero)
+        position: Tween(begin: const Offset(0, 0.10), end: Offset.zero)
             .animate(curve),
         child: child,
       ),
     );
   }
 
-  Widget _content() {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: widget.builder(context, _reveal),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
       child: Scaffold(
-        // Matches the panel so it appears to run to the bottom edge.
+        // Matches the sheet so it appears to run to the bottom edge.
         backgroundColor: Theme.of(context).colorScheme.surface,
-        body: Stack(
-          children: [
-            LayoutBuilder(
-              builder: (context, constraints) =>
-                  constraints.maxWidth >= _wideBreakpoint
-                      ? _buildWideLayout()
-                      : _buildStackedLayout(),
-            ),
-            if (widget.onBack != null)
-              SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.xs),
-                  child: IconButton(
-                    tooltip: 'Back',
-                    onPressed: widget.onBack,
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.white.withValues(alpha: 0.14),
-                      foregroundColor: Colors.white,
-                    ),
-                    icon: const Icon(Icons.arrow_back_rounded),
-                  ),
-                ),
-              ),
-          ],
+        body: LayoutBuilder(
+          builder: (context, constraints) =>
+              constraints.maxWidth >= _wideBreakpoint
+                  ? _buildWide()
+                  : _buildStacked(),
         ),
       ),
     );
   }
 
-  /// Hero on top, panel overlapping its bottom edge. Everything scrolls when
-  /// space is tight (small phones, keyboard open).
-  Widget _buildStackedLayout() {
-    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
-    final heroMinHeight = keyboardOpen
-        ? 0.0
-        : MediaQuery.sizeOf(context).height * widget.heroHeightFactor +
-            _panelRadius;
-
+  Widget _buildStacked() {
     return SingleChildScrollView(
       physics: const ClampingScrollPhysics(),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _reveal(
-            0,
-            0.6,
-            AuthHero(
-              compact: widget.compactHero || keyboardOpen,
-              bottomInset: _panelRadius,
-              minHeight: heroMinHeight,
+          HeaderWash(
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.md,
+                  AppSpacing.lg,
+                  AppSpacing.xl + _sheetRadius,
+                ),
+                child: _reveal(0, 0.6, _buildHeader()),
+              ),
             ),
           ),
           Transform.translate(
-            offset: const Offset(0, -_panelRadius),
+            offset: const Offset(0, -_sheetRadius),
             child: _reveal(
-              0.2,
-              1,
-              _Panel(
+              0.15,
+              0.9,
+              _Sheet(
                 borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(_panelRadius),
+                  top: Radius.circular(_sheetRadius),
                 ),
-                child: _content(),
+                child: widget.builder(context, _reveal),
               ),
             ),
           ),
@@ -162,54 +135,129 @@ class _AuthScaffoldState extends State<AuthScaffold>
     );
   }
 
-  Widget _buildWideLayout() {
-    return Row(
-      children: [
-        Expanded(
-          child: _reveal(0, 0.6, const SizedBox.expand(child: AuthHero())),
-        ),
-        SizedBox(
-          width: 520,
-          child: _reveal(
-            0.2,
-            1,
-            _Panel(
-              borderRadius: const BorderRadius.horizontal(
-                left: Radius.circular(_panelRadius),
-              ),
-              child: Center(child: SingleChildScrollView(child: _content())),
+  Widget _buildWide() {
+    return HeaderWash(
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _reveal(0, 0.6, _buildHeader()),
+                const SizedBox(height: AppSpacing.xl),
+                _reveal(
+                  0.15,
+                  0.9,
+                  _Sheet(
+                    borderRadius: BorderRadius.circular(_sheetRadius),
+                    topBorderOnly: false,
+                    child: widget.builder(context, _reveal),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            if (widget.onBack != null) ...[
+              CircleIconButton(
+                icon: Icons.arrow_back_rounded,
+                tooltip: 'Back',
+                onPressed: widget.onBack,
+              ),
+              const Spacer(),
+            ],
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.asset(
+                _logoAsset,
+                width: 36,
+                height: 36,
+                filterQuality: FilterQuality.medium,
+                semanticLabel: 'Careerly logo',
+              ),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Text(
+              'Careerly',
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.2),
+            ),
+            if (widget.onBack != null) const Spacer(),
+            if (widget.onBack != null) const SizedBox(width: 48),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        EmphasisText(
+          widget.headline,
+          style: theme.textTheme.headlineMedium?.copyWith(fontSize: 30),
+        ),
+        if (widget.subtitle != null) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            widget.subtitle!,
+            style: theme.textTheme.bodyLarge
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ],
       ],
     );
   }
 }
 
-/// The rounded surface the content sits on.
-class _Panel extends StatelessWidget {
-  const _Panel({required this.borderRadius, required this.child});
+/// The white surface the form sits on.
+class _Sheet extends StatelessWidget {
+  const _Sheet({
+    required this.borderRadius,
+    required this.child,
+    this.topBorderOnly = true,
+  });
 
   final BorderRadius borderRadius;
   final Widget child;
 
+  /// Stacked layout: only the top edge is outlined, so the sheet blends
+  /// into the page below it.
+  final bool topBorderOnly;
+
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Container(
-      width: double.infinity,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: colorScheme.surface,
         borderRadius: borderRadius,
+        border: topBorderOnly
+            ? Border(top: BorderSide(color: colorScheme.outline))
+            : Border.all(color: colorScheme.outline),
       ),
       padding: EdgeInsets.fromLTRB(
         AppSpacing.lg,
-        AppSpacing.xl,
+        AppSpacing.lg,
         AppSpacing.lg,
         AppSpacing.lg + bottomInset,
       ),
-      child: child,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: child,
+        ),
+      ),
     );
   }
 }
