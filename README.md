@@ -30,6 +30,8 @@ lib/
     <feature>/
       data/            Repositories and data helpers
       presentation/    Screens and feature widgets
-assets/fonts/          Bundled fonts (Inter, OFL licensed)
+assets/
+  fonts/               Bundled fonts (Inter, OFL licensed)
+  icons/               App logo
 test/                  Mirrors lib/ structure
 ```

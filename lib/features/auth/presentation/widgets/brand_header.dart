@@ -1,39 +1,23 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 
-/// App mark + wordmark shown at the top of auth screens.
+/// App logo + wordmark shown at the top of auth screens.
 class BrandHeader extends StatelessWidget {
   const BrandHeader({super.key});
+
+  static const _logoAsset = 'assets/icons/careerly_logo.png';
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
+        Image.asset(
+          _logoAsset,
           width: 44,
           height: 44,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [AppColors.brandBright, AppColors.brandDeep],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.brand.withValues(alpha: 0.25),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.work_outline_rounded,
-            color: Colors.white,
-            size: 22,
-          ),
+          filterQuality: FilterQuality.medium,
+          semanticLabel: 'Careerly logo',
         ),
         const SizedBox(width: AppSpacing.sm),
         Text(

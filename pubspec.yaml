@@ -19,6 +19,9 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
+  assets:
+    - assets/icons/careerly_logo.png
+
   fonts:
     - family: Inter
       fonts:
