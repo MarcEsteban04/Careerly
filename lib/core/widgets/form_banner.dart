@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 
-enum FormBannerTone { error, success }
+enum FormBannerTone { error, success, info }
 
 /// Inline, form-level message, e.g. wrong credentials or "check your inbox".
 class FormBanner extends StatelessWidget {
@@ -28,6 +28,10 @@ class FormBanner extends StatelessWidget {
       FormBannerTone.success => (
           isDark ? AppColors.successDark : AppColors.success,
           Icons.check_circle_outline_rounded,
+        ),
+      FormBannerTone.info => (
+          theme.colorScheme.primary,
+          Icons.auto_awesome_outlined,
         ),
     };
 

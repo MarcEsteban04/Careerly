@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/form_banner.dart';
 import '../../../core/widgets/pill_chip.dart';
 import '../../../core/widgets/search_pill.dart';
 import '../../profile/data/career_profile.dart';
@@ -37,6 +38,16 @@ class DiscoverHeader extends StatelessWidget {
           controller: searchController,
           onSubmitted: controller.search,
         ),
+        if (controller.suggestions.length > 1) ...[
+          const SizedBox(height: AppSpacing.sm),
+          _Suggestions(
+            suggestions: controller.suggestions,
+            onTap: (role) {
+              searchController.text = role;
+              controller.search(role);
+            },
+          ),
+        ],
         const SizedBox(height: AppSpacing.md),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -133,18 +144,40 @@ class DiscoverResults extends StatelessWidget {
       );
     }
 
+    final aiProvider = results
+        .map((r) => r.match?.aiProvider)
+        .firstWhere((p) => p != null, orElse: () => null);
+    final summary = controller.profile.isEmpty
+        ? '${results.length} jobs for "${controller.keywords}"'
+        : aiProvider != null
+            ? '${results.length} jobs · ranked for you by $aiProvider'
+            : '${results.length} jobs for "${controller.keywords}" · best '
+                'matches first';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (controller.notice != null) ...[
+          FormBanner(message: controller.notice!, tone: FormBannerTone.info),
+          const SizedBox(height: AppSpacing.md),
+        ],
         Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: Text(
-            controller.profile.isEmpty
-                ? '${results.length} jobs for "${controller.keywords}"'
-                : '${results.length} jobs for "${controller.keywords}" · '
-                    'best matches first',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  controller.isRanking ? 'Ranking with AI…' : summary,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ),
+              if (controller.isRanking)
+                const SizedBox.square(
+                  dimension: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
           ),
         ),
         for (final ranked in results) ...[
@@ -158,8 +191,9 @@ class DiscoverResults extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(top: AppSpacing.xs),
           child: Text(
-            'Results come from job boards via JSearch and Jooble. Always '
-            'check the original post before applying.',
+            'Results come from job boards via JSearch and Jooble, with AI web '
+            'search as a backup. Always check the original post before '
+            'applying.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
@@ -189,11 +223,13 @@ class _ProfileSummary extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final empty = profile.isEmpty;
+    final skills = profile.effectiveSkills.length;
     final details = [
-      if (profile.targetRoles.isNotEmpty) profile.targetRoles.join(', '),
+      if (profile.effectiveRoles.isNotEmpty)
+        profile.effectiveRoles.take(2).join(', '),
       profile.workSetup.label,
-      if (profile.skills.isNotEmpty)
-        '${profile.skills.length} skill${profile.skills.length == 1 ? '' : 's'}',
+      if (skills > 0) '$skills skill${skills == 1 ? '' : 's'}',
+      if (profile.resume != null) 'Resume added',
     ].join(' · ');
 
     return AppCard(
@@ -227,7 +263,8 @@ class _ProfileSummary extends StatelessWidget {
                 ),
                 Text(
                   empty
-                      ? 'Add roles and skills to get match scores.'
+                      ? 'Upload your resume or add roles to get tailored '
+                          'matches.'
                       : details,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -242,6 +279,54 @@ class _ProfileSummary extends StatelessWidget {
             size: 20,
             color: colorScheme.onSurfaceVariant,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tailored searches from the profile and resume, e.g. "For you: UI
+/// Designer · Product Designer".
+class _Suggestions extends StatelessWidget {
+  const _Suggestions({required this.suggestions, required this.onTap});
+
+  final List<String> suggestions;
+  final ValueChanged<String> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      child: Row(
+        children: [
+          Icon(Icons.auto_awesome_rounded, size: 16, color: colorScheme.primary),
+          const SizedBox(width: 6),
+          Text(
+            'For you',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: colorScheme.primary,
+              fontSize: 13,
+            ),
+          ),
+          for (final role in suggestions) ...[
+            const SizedBox(width: AppSpacing.xs),
+            ActionChip(
+              label: Text(role),
+              onPressed: () => onTap(role),
+              visualDensity: VisualDensity.compact,
+              shape: const StadiumBorder(),
+              side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.3)),
+              backgroundColor: colorScheme.primary.withValues(alpha: 0.06),
+              labelStyle: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -17,6 +17,7 @@ class JobListing {
     this.qualifications = const [],
     this.responsibilities = const [],
     this.benefits = const [],
+    this.foundByAi,
   });
 
   final String id;
@@ -43,6 +44,10 @@ class JobListing {
   final List<String> qualifications;
   final List<String> responsibilities;
   final List<String> benefits;
+
+  /// Set when the job came from AI web search (the provider name), which is
+  /// only used when the job APIs are unavailable.
+  final String? foundByAi;
 
   /// Key for spotting the same job from two sources.
   String get dedupeKey =>

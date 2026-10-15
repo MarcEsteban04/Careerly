@@ -279,7 +279,7 @@ class _JobListingScreenState extends State<JobListingScreen> {
     if (match == null) {
       return _muted(
         theme,
-        'Add your target roles and skills to your career profile to see how '
+        'Upload your resume or add target roles to your career profile to see how '
         'well each job fits you.',
       );
     }
@@ -326,7 +326,47 @@ class _JobListingScreenState extends State<JobListingScreen> {
           ],
         ),
         const SizedBox(height: AppSpacing.md),
-        if (match.reasons.isEmpty)
+        if (match.aiSummary != null) ...[
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 18,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        match.aiSummary!,
+                        style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Scored by ${match.aiProvider} against your resume and '
+                        'profile',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+        if (match.reasons.isEmpty && match.aiSummary == null)
           _muted(theme, "It doesn't mention your target roles or skills.")
         else
           for (final reason in match.reasons) _Bullet(reason, check: true),

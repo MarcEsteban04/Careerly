@@ -2,13 +2,26 @@ import '../../profile/data/career_profile.dart';
 import 'job_listing.dart';
 
 class JobMatch {
-  const JobMatch({required this.score, required this.reasons});
+  const JobMatch({
+    required this.score,
+    required this.reasons,
+    this.aiSummary,
+    this.aiProvider,
+  });
 
   /// 0–100.
   final int score;
 
   /// Short, human-readable reasons, best first.
   final List<String> reasons;
+
+  /// One-sentence verdict from AI ranking, when available.
+  final String? aiSummary;
+
+  /// Which AI provider scored it (null for keyword scoring).
+  final String? aiProvider;
+
+  bool get isAi => aiSummary != null;
 }
 
 /// Scores how well a job fits the career profile, from the role title,
@@ -26,7 +39,7 @@ abstract final class JobMatcher {
     final titleWords = _words(job.title);
     var titleScore = 0.0;
     String? bestRole;
-    for (final role in profile.targetRoles) {
+    for (final role in profile.effectiveRoles) {
       final roleWords = _words(role);
       if (roleWords.isEmpty) continue;
       final overlap = roleWords.where(titleWords.contains).length / roleWords.length;
@@ -40,12 +53,13 @@ abstract final class JobMatcher {
     // Skills mentioned anywhere in the posting.
     final text = job.searchableText;
     final matchedSkills = [
-      for (final skill in profile.skills)
+      for (final skill in profile.effectiveSkills)
         if (_mentions(text, skill)) skill,
     ];
-    final skillsScore = profile.skills.isEmpty
+    final skillsScore = profile.effectiveSkills.isEmpty
         ? 0.5
-        : (matchedSkills.length / profile.skills.length.clamp(1, 5)).clamp(0, 1);
+        : (matchedSkills.length / profile.effectiveSkills.length.clamp(1, 5))
+            .clamp(0, 1);
     if (matchedSkills.isNotEmpty) {
       final shown = matchedSkills.take(3).join(', ');
       reasons.add(
@@ -64,7 +78,7 @@ abstract final class JobMatcher {
     if (profile.workSetup == WorkSetup.remote && job.isRemote) {
       reasons.add('Remote');
     } else if (profile.workSetup == WorkSetup.onsite && _isNearby(job, profile)) {
-      reasons.add('Near ${profile.location}');
+      reasons.add('Near ${profile.effectiveLocation}');
     }
 
     final score = (titleScore * _titleWeight +
@@ -76,7 +90,7 @@ abstract final class JobMatcher {
   }
 
   static bool _isNearby(JobListing job, CareerProfile profile) {
-    final city = profile.location?.toLowerCase().trim();
+    final city = profile.effectiveLocation?.toLowerCase().trim();
     if (city == null || city.isEmpty) return false;
     return (job.location ?? '').toLowerCase().contains(city);
   }

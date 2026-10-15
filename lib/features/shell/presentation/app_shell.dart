@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/ai/ai_chain.dart';
+import '../../../core/ai/providers.dart';
 import '../../../core/config/env.dart';
 import '../../../core/utils/error_message.dart';
 import '../../agenda/data/agenda_repository.dart';
@@ -13,6 +15,8 @@ import '../../applications/presentation/applications_screen.dart';
 import '../../auth/data/app_lock_repository.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../dashboard/presentation/dashboard_screen.dart';
+import '../../discover/data/ai_job_ranker.dart';
+import '../../discover/data/ai_job_search_client.dart';
 import '../../discover/data/discover_controller.dart';
 import '../../discover/data/jooble_client.dart';
 import '../../discover/data/jsearch_client.dart';
@@ -23,6 +27,7 @@ import '../../goals/presentation/goal_form_sheet.dart';
 import '../../goals/presentation/goals_screen.dart';
 import '../../profile/data/career_profile_repository.dart';
 import '../../profile/presentation/career_profile_sheet.dart';
+import '../../resume/data/resume_reader.dart';
 import '../../settings/presentation/account_sheet.dart';
 import '../data/workspace_controller.dart';
 import 'widgets/floating_nav_bar.dart';
@@ -43,12 +48,25 @@ class AppShell extends StatefulWidget {
   })  : applications = applications ?? ApplicationsRepository(),
         agenda = agenda ?? AgendaRepository(),
         goals = goals ?? GoalsRepository(),
-        discover = discover ??
-            DiscoverController(
-              jsearch: JSearchClient(apiKey: Env.jsearchApiKey),
-              jooble: JoobleClient(apiKey: Env.joobleApiKey),
-              profiles: CareerProfileRepository(),
-            );
+        discover = discover ?? _defaultDiscover();
+
+  /// Job search wired to the configured APIs, with AI (Gemini, then Groq,
+  /// then OpenAI as a last resort) for resumes, ranking and backup search.
+  static DiscoverController _defaultDiscover() {
+    final ai = AiChain([
+      GeminiProvider(apiKey: Env.geminiApiKey),
+      GroqProvider(apiKey: Env.groqApiKey),
+      OpenAiProvider(apiKey: Env.openAiApiKey),
+    ]);
+    return DiscoverController(
+      jsearch: JSearchClient(apiKey: Env.jsearchApiKey),
+      jooble: JoobleClient(apiKey: Env.joobleApiKey),
+      profiles: CareerProfileRepository(),
+      aiSearch: AiJobSearchClient(ai),
+      aiRanker: AiJobRanker(ai),
+      resumeReader: ResumeReader(ai),
+    );
+  }
 
   final AuthRepository authRepository;
   final AppLockRepository appLock;
@@ -166,6 +184,8 @@ class _AppShellState extends State<AppShell> {
       context,
       initial: widget.discover.profile,
       onSave: widget.discover.saveProfile,
+      canReadResumes: widget.discover.canReadResumes,
+      onReadResume: widget.discover.readResume,
     );
     if (saved) _showMessage('Profile saved. Matches updated.');
   }

@@ -88,6 +88,15 @@ class JobListingCard extends StatelessWidget {
                 label: 'via ${job.source}',
                 leading: const Icon(Icons.travel_explore_rounded, size: 14),
               ),
+              if (job.foundByAi != null)
+                TagPill(
+                  label: 'Found by AI',
+                  leading: Icon(
+                    Icons.auto_awesome_rounded,
+                    size: 14,
+                    color: colorScheme.primary,
+                  ),
+                ),
               if (isSaved)
                 TagPill(
                   label: 'Saved',
@@ -99,6 +108,34 @@ class JobListingCard extends StatelessWidget {
                 ),
             ],
           ),
+          if (match?.aiSummary != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Icon(
+                    Icons.auto_awesome_rounded,
+                    size: 16,
+                    color: colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    match!.aiSummary!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurface,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
       footer: TrayFooter(
