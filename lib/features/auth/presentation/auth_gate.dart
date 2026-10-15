@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../home/presentation/home_screen.dart';
+import '../../dashboard/presentation/dashboard_screen.dart';
 import '../data/app_lock_repository.dart';
 import '../data/auth_repository.dart';
 import '../data/remembered_account_store.dart';
@@ -140,8 +140,8 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
           onUnlocked: () => setState(() => _status = _GateStatus.unlocked),
           onUsePassword: widget.authRepository.signOut,
         ),
-      _GateStatus.unlocked => HomeScreen(
-          key: const ValueKey('home'),
+      _GateStatus.unlocked => DashboardScreen(
+          key: const ValueKey('dashboard'),
           authRepository: widget.authRepository,
           appLock: widget.appLock,
         ),

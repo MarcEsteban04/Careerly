@@ -11,6 +11,8 @@ class AuthRepository {
 
   Session? get currentSession => _client.auth.currentSession;
 
+  String? get currentUserEmail => _client.auth.currentUser?.email;
+
   /// The name given at sign-up, if any.
   String? get currentUserName {
     final name = _client.auth.currentUser?.userMetadata?['full_name'];
