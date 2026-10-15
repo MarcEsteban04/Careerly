@@ -134,8 +134,11 @@ class _Bar extends StatelessWidget {
                 final total = constraints.maxWidth;
                 final count = bar.items.length;
                 // The active tab gets room for its label.
-                final active = (total * 0.36).clamp(92.0, 150.0);
-                final inactive = (total - active) / (count - 1);
+                // Guarded for tiny widths (e.g. the first frame before the
+                // screen size is known) so no width goes negative.
+                final active = (total * 0.36).clamp(92.0, 150.0).clamp(0.0, total);
+                final inactive =
+                    count > 1 ? ((total - active) / (count - 1)).clamp(0.0, total) : 0.0;
 
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
