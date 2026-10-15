@@ -27,11 +27,15 @@ class ApplicationDetailScreen extends StatefulWidget {
     required this.applicationId,
     required this.controller,
     required this.agenda,
+    required this.onWriteCoverLetter,
+    required this.onTailorResume,
   });
 
   final String applicationId;
   final WorkspaceController controller;
   final AgendaRepository agenda;
+  final ValueChanged<JobApplication> onWriteCoverLetter;
+  final ValueChanged<JobApplication> onTailorResume;
 
   @override
   State<ApplicationDetailScreen> createState() =>
@@ -177,6 +181,16 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                   onTap: () => Navigator.of(context).pop('open'),
                 ),
               ListTile(
+                leading: const Icon(Icons.edit_note_rounded),
+                title: const Text('Write a cover letter'),
+                onTap: () => Navigator.of(context).pop('letter'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.auto_fix_high_rounded),
+                title: const Text('Tailor my resume to this job'),
+                onTap: () => Navigator.of(context).pop('tailor'),
+              ),
+              ListTile(
                 leading: Icon(
                   Icons.delete_outline_rounded,
                   color: Theme.of(context).colorScheme.error,
@@ -194,6 +208,8 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     );
     if (!mounted) return;
     if (action == 'open') await _openJobPost(application.jobUrl!);
+    if (action == 'letter') widget.onWriteCoverLetter(application);
+    if (action == 'tailor') widget.onTailorResume(application);
     if (action == 'delete') await _confirmDelete(application);
   }
 

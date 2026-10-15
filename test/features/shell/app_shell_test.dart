@@ -4,9 +4,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:careerly/core/widgets/pill_chip.dart';
 import 'package:careerly/features/applications/data/job_application.dart';
+import 'package:careerly/core/ai/ai_chain.dart';
+import 'package:careerly/features/documents/data/career_document.dart';
 import 'package:careerly/features/profile/data/career_profile.dart';
+import 'package:careerly/features/resume/data/resume_insights.dart';
 import 'package:careerly/features/shell/data/workspace_data.dart';
 
+import '../../core/ai/fake_ai_provider.dart';
 import 'shell_test_utils.dart';
 
 void main() {
@@ -239,7 +243,8 @@ void main() {
       await tester.tap(find.text('UI/UX Designer'));
       await tester.pumpAndSettle();
       expect(find.text('Job Detail'), findsOneWidget);
-      expect(find.text('Apply this job'), findsOneWidget);
+      expect(find.text('Apply'), findsOneWidget);
+      expect(find.text('Cover letter'), findsOneWidget);
 
       await tester.tap(find.byTooltip('Save to tracker'));
       await tester.pumpAndSettle();
@@ -247,6 +252,72 @@ void main() {
       expect(applications.items.single.role, 'UI/UX Designer');
       expect(applications.items.single.status, ApplicationStatus.saved);
       expect(find.byTooltip('Saved to tracker'), findsOneWidget);
+    });
+  });
+
+  group('studio', () {
+    testWidgets('asks for a resume before writing', (tester) async {
+      await pumpShell(tester, applications: FakeApplicationsRepository());
+      await openTab(tester, 'Studio');
+
+      expect(find.text('Add your resume'), findsOneWidget);
+      await tester.tap(find.text('Enhance resume'));
+      await tester.pumpAndSettle();
+      expect(find.text('Upload your resume first'), findsOneWidget);
+    });
+
+    testWidgets('enhances the resume and saves it to Studio', (tester) async {
+      final profile = CareerProfile(
+        targetRoles: const ['UI Designer'],
+        resume: ResumeInsights(
+          fileName: 'cv.pdf',
+          uploadedAt: DateTime(2026, 10, 1),
+          textDocumentId: 'orig',
+        ),
+      );
+      final documents = FakeDocumentsRepository([
+        CareerDocument(
+          id: 'orig',
+          kind: DocumentKind.resume,
+          title: '${CareerDocument.originalResumePrefix} · cv.pdf',
+          content: 'Maria Santos — designer',
+          createdAt: DateTime(2026, 10, 1),
+        ),
+      ]);
+      final ai = FakeAiProvider(
+        'Gemini',
+        reply: '{"resume": "# Maria Santos\\n## Summary\\nUI designer who '
+            'ships.", "changes": ["Sharper summary"]}',
+      );
+      await pumpShell(
+        tester,
+        applications: FakeApplicationsRepository(),
+        discover: fakeDiscover(profile: profile),
+        studio: fakeStudio(
+          profile: profile,
+          documents: documents,
+          ai: AiChain([ai]),
+        ),
+      );
+      await openTab(tester, 'Studio');
+      expect(find.text('cv.pdf'), findsOneWidget);
+
+      await tester.tap(find.text('Enhance resume'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Enhance with AI'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('What changed'), findsOneWidget);
+      expect(find.text('Sharper summary'), findsOneWidget);
+      expect(find.text('Maria Santos'), findsOneWidget);
+
+      await tester.tap(find.text('Save to Studio'));
+      await tester.pumpAndSettle();
+      expect(documents.docs.first.title, 'Resume · UI Designer');
+
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      expect(find.text('Resume · UI Designer'), findsOneWidget);
     });
   });
 

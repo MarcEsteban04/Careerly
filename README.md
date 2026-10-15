@@ -39,6 +39,8 @@ lib/
     discover/          Job search (JSearch, Jooble) and match scoring
     profile/           Career profile used for matching
     resume/            Resume upload and AI reading
+    studio/            AI resume enhancement and cover letters
+    documents/         Saved resumes and cover letters, PDF export
     settings/          Account sheet
     (each has data/ for models + repositories, presentation/ for UI)
 assets/

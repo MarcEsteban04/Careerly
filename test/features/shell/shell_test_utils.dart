@@ -7,7 +7,12 @@ import 'package:careerly/features/agenda/data/agenda_repository.dart';
 import 'package:careerly/features/applications/data/applications_repository.dart';
 import 'package:careerly/features/applications/data/job_application.dart';
 import 'package:careerly/features/auth/data/app_lock_repository.dart';
+import 'package:careerly/core/ai/ai_chain.dart';
 import 'package:careerly/features/discover/data/discover_controller.dart';
+import 'package:careerly/features/documents/data/career_document.dart';
+import 'package:careerly/features/documents/data/documents_repository.dart';
+import 'package:careerly/features/studio/data/career_writer.dart';
+import 'package:careerly/features/studio/data/studio_controller.dart';
 import 'package:careerly/features/discover/data/job_listing.dart';
 import 'package:careerly/features/discover/data/job_search_query.dart';
 import 'package:careerly/features/discover/data/jooble_client.dart';
@@ -219,6 +224,7 @@ Future<void> pumpShell(
   FakeAgendaRepository? agenda,
   FakeGoalsRepository? goals,
   DiscoverController? discover,
+  StudioController? studio,
   ThemeData? theme,
 }) async {
   tester.platformDispatcher.accessibilityFeaturesTestValue =
@@ -239,6 +245,7 @@ Future<void> pumpShell(
         agenda: agenda ?? FakeAgendaRepository(),
         goals: goals ?? FakeGoalsRepository(),
         discover: discover ?? fakeDiscover(),
+        studio: studio ?? fakeStudio(),
       ),
     ),
   );
@@ -303,3 +310,59 @@ const sampleListings = [
     description: 'Go and Postgres services.',
   ),
 ];
+
+class FakeDocumentsRepository implements DocumentsRepository {
+  FakeDocumentsRepository([List<CareerDocument>? docs]) : docs = docs ?? [];
+
+  final List<CareerDocument> docs;
+
+  @override
+  Future<List<CareerDocument>> fetchAll() async => List.of(docs);
+
+  @override
+  Future<CareerDocument?> fetch(String id) async {
+    for (final d in docs) {
+      if (d.id == id) return d;
+    }
+    return null;
+  }
+
+  @override
+  Future<CareerDocument> create({
+    required DocumentKind kind,
+    required String title,
+    required String content,
+    String? applicationId,
+  }) async {
+    final doc = CareerDocument(
+      id: 'doc-${docs.length}',
+      kind: kind,
+      title: title,
+      content: content,
+      createdAt: DateTime.now(),
+      applicationId: applicationId,
+    );
+    docs.insert(0, doc);
+    return doc;
+  }
+
+  @override
+  Future<CareerDocument> update(String id, {String? title, String? content}) async {
+    final i = docs.indexWhere((d) => d.id == id);
+    return docs[i] = docs[i].copyWith(title: title, content: content);
+  }
+
+  @override
+  Future<void> delete(String id) async => docs.removeWhere((d) => d.id == id);
+}
+
+StudioController fakeStudio({
+  CareerProfile profile = const CareerProfile(),
+  FakeDocumentsRepository? documents,
+  AiChain? ai,
+}) =>
+    StudioController(
+      documents: documents ?? FakeDocumentsRepository(),
+      writer: CareerWriter(ai ?? AiChain([])),
+      profile: () => profile,
+    );

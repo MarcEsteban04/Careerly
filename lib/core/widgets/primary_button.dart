@@ -55,7 +55,15 @@ class PrimaryButton extends StatelessWidget {
                   key: const ValueKey('label'),
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(label),
+                    // Shrinks with an ellipsis in tight rows or with large
+                    // text rather than overflowing.
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                     if (icon != null) ...[
                       const SizedBox(width: AppSpacing.xs),
                       Icon(icon, size: 20),

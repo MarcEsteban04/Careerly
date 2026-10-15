@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import '../../../core/ai/ai_chain.dart';
 import '../../profile/data/career_profile.dart';
 import '../../profile/data/career_profile_repository.dart';
-import '../../resume/data/resume_insights.dart';
 import '../../resume/data/resume_reader.dart';
 import 'ai_job_ranker.dart';
 import 'ai_job_search_client.dart';
@@ -98,7 +97,7 @@ class DiscoverController extends ChangeNotifier {
   }
 
   /// Reads a resume PDF with AI. Throws if no provider can read it.
-  Future<ResumeInsights> readResume(Uint8List bytes, String fileName) {
+  Future<ResumeRead> readResume(Uint8List bytes, String fileName) {
     final reader = resumeReader;
     if (reader == null) {
       throw const AiUnavailableException([]);

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/ai/ai_chain.dart';
@@ -21,21 +23,30 @@ import '../../discover/data/discover_controller.dart';
 import '../../discover/data/jooble_client.dart';
 import '../../discover/data/jsearch_client.dart';
 import '../../discover/presentation/job_listing_screen.dart';
+import '../../documents/data/career_document.dart';
+import '../../documents/data/documents_repository.dart';
 import '../../goals/data/goal.dart';
 import '../../goals/data/goals_repository.dart';
 import '../../goals/presentation/goal_form_sheet.dart';
 import '../../goals/presentation/goals_screen.dart';
 import '../../profile/data/career_profile_repository.dart';
 import '../../profile/presentation/career_profile_sheet.dart';
+import '../../resume/data/resume_insights.dart';
 import '../../resume/data/resume_reader.dart';
 import '../../settings/presentation/account_sheet.dart';
+import '../../studio/data/career_writer.dart';
+import '../../studio/data/studio_controller.dart';
+import '../../studio/presentation/cover_letter_screen.dart';
+import '../../studio/presentation/document_screen.dart';
+import '../../studio/presentation/resume_enhance_screen.dart';
+import '../../studio/presentation/studio_screen.dart';
 import '../data/workspace_controller.dart';
 import 'widgets/floating_nav_bar.dart';
 import 'widgets/quick_add_sheet.dart';
 
-enum _Tab { home, jobs, agenda, goals }
+enum _Tab { home, jobs, agenda, goals, studio }
 
-/// Signed-in app: the four tabs, the floating nav bar and the "+" button.
+/// Signed-in app: the tabs, the floating nav bar and the "+" button.
 class AppShell extends StatefulWidget {
   AppShell({
     super.key,
@@ -44,36 +55,21 @@ class AppShell extends StatefulWidget {
     ApplicationsRepository? applications,
     AgendaRepository? agenda,
     GoalsRepository? goals,
-    DiscoverController? discover,
+    this.discover,
+    this.studio,
   })  : applications = applications ?? ApplicationsRepository(),
         agenda = agenda ?? AgendaRepository(),
-        goals = goals ?? GoalsRepository(),
-        discover = discover ?? _defaultDiscover();
-
-  /// Job search wired to the configured APIs, with AI (Gemini, then Groq,
-  /// then OpenAI as a last resort) for resumes, ranking and backup search.
-  static DiscoverController _defaultDiscover() {
-    final ai = AiChain([
-      GeminiProvider(apiKey: Env.geminiApiKey),
-      GroqProvider(apiKey: Env.groqApiKey),
-      OpenAiProvider(apiKey: Env.openAiApiKey),
-    ]);
-    return DiscoverController(
-      jsearch: JSearchClient(apiKey: Env.jsearchApiKey),
-      jooble: JoobleClient(apiKey: Env.joobleApiKey),
-      profiles: CareerProfileRepository(),
-      aiSearch: AiJobSearchClient(ai),
-      aiRanker: AiJobRanker(ai),
-      resumeReader: ResumeReader(ai),
-    );
-  }
+        goals = goals ?? GoalsRepository();
 
   final AuthRepository authRepository;
   final AppLockRepository appLock;
   final ApplicationsRepository applications;
   final AgendaRepository agenda;
   final GoalsRepository goals;
-  final DiscoverController discover;
+
+  /// Overrides for tests; built from the app config when null.
+  final DiscoverController? discover;
+  final StudioController? studio;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -101,13 +97,43 @@ class _AppShellState extends State<AppShell> {
       selectedIcon: Icons.flag_rounded,
       label: 'Goals',
     ),
+    FloatingNavItem(
+      icon: Icons.auto_awesome_outlined,
+      selectedIcon: Icons.auto_awesome_rounded,
+      label: 'Studio',
+    ),
   ];
+
+  /// AI for every feature: Gemini, then Groq, then OpenAI as a last resort.
+  late final _ai = AiChain([
+    GeminiProvider(apiKey: Env.geminiApiKey),
+    GroqProvider(apiKey: Env.groqApiKey),
+    OpenAiProvider(apiKey: Env.openAiApiKey),
+  ]);
 
   late final _workspace = WorkspaceController(
     applications: widget.applications,
     agenda: widget.agenda,
     goals: widget.goals,
   )..load();
+
+  late final DiscoverController _discover = widget.discover ??
+      DiscoverController(
+        jsearch: JSearchClient(apiKey: Env.jsearchApiKey),
+        jooble: JoobleClient(apiKey: Env.joobleApiKey),
+        profiles: CareerProfileRepository(),
+        aiSearch: AiJobSearchClient(_ai),
+        aiRanker: AiJobRanker(_ai),
+        resumeReader: ResumeReader(_ai),
+      );
+
+  late final StudioController _studio = (widget.studio ??
+      StudioController(
+        documents: DocumentsRepository(),
+        writer: CareerWriter(_ai),
+        profile: () => _discover.profile,
+      ))
+    ..load();
 
   _Tab _tab = _Tab.home;
   ApplicationStatus? _jobsFilter;
@@ -119,10 +145,11 @@ class _AppShellState extends State<AppShell> {
   @override
   void dispose() {
     _workspace.dispose();
+    _discover.dispose();
+    _studio.dispose();
     _jobsSearch.dispose();
     _jobsSearchFocus.dispose();
     _discoverSearch.dispose();
-    widget.discover.dispose();
     super.dispose();
   }
 
@@ -141,10 +168,27 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  bool _isListingSaved(RankedListing ranked) =>
-      _workspace.data?.applications
-          .any((a) => a.jobUrl == ranked.listing.applyUrl) ??
-      false;
+  void _showMessage(String? message) {
+    if (message == null || !mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<T?> _push<T>(Widget screen) => Navigator.of(context).push<T>(
+        MaterialPageRoute<T>(builder: (_) => screen),
+      );
+
+  // Job discovery -----------------------------------------------------------
+
+  JobApplication? _trackedFor(RankedListing ranked) {
+    for (final a in _workspace.data?.applications ?? const <JobApplication>[]) {
+      if (a.jobUrl == ranked.listing.applyUrl) return a;
+    }
+    return null;
+  }
+
+  bool _isListingSaved(RankedListing ranked) => _trackedFor(ranked) != null;
 
   /// Adds a found job to the tracker as "Saved".
   Future<bool> _saveListing(RankedListing ranked) async {
@@ -167,46 +211,105 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  JobContext _contextForListing(RankedListing ranked) {
+    final job = ranked.listing;
+    return JobContext(
+      title: job.title,
+      company: job.company,
+      location: job.isRemote ? 'Remote' : job.location,
+      description: [
+        job.description,
+        if (job.qualifications.isNotEmpty)
+          'Qualifications:\n- ${job.qualifications.join('\n- ')}',
+        if (job.responsibilities.isNotEmpty)
+          'Responsibilities:\n- ${job.responsibilities.join('\n- ')}',
+      ].where((s) => s.trim().isNotEmpty).join('\n\n'),
+      applicationId: _trackedFor(ranked)?.id,
+    );
+  }
+
   void _openListing(RankedListing ranked) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => JobListingScreen(
-          ranked: ranked,
-          isSaved: _isListingSaved(ranked),
-          onSave: () => _saveListing(ranked),
-        ),
+    _push<void>(
+      JobListingScreen(
+        ranked: ranked,
+        isSaved: _isListingSaved(ranked),
+        onSave: () => _saveListing(ranked),
+        onWriteCoverLetter: () => _writeCoverLetter(_contextForListing(ranked)),
+        onTailorResume: () => _enhanceResume(_contextForListing(ranked)),
       ),
     );
+  }
+
+  /// Reads a resume and keeps its full text for AI writing.
+  Future<ResumeInsights> _readResume(Uint8List bytes, String fileName) async {
+    final read = await _discover.readResume(bytes, fileName);
+    final text = read.text;
+    if (text == null) return read.insights;
+    final id = await _studio.saveResumeText(fileName, text);
+    return read.insights.withTextDocument(id);
   }
 
   Future<void> _editCareerProfile() async {
     final saved = await showCareerProfileSheet(
       context,
-      initial: widget.discover.profile,
-      onSave: widget.discover.saveProfile,
-      canReadResumes: widget.discover.canReadResumes,
-      onReadResume: widget.discover.readResume,
+      initial: _discover.profile,
+      onSave: _discover.saveProfile,
+      canReadResumes: _discover.canReadResumes,
+      onReadResume: _readResume,
     );
-    if (saved) _showMessage('Profile saved. Matches updated.');
+    if (saved) {
+      _showMessage('Profile saved. Matches updated.');
+      setState(() {});
+    }
   }
 
-  void _openApplication(String id) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => ApplicationDetailScreen(
-          applicationId: id,
-          controller: _workspace,
-          agenda: widget.agenda,
-        ),
+  // Studio ------------------------------------------------------------------
+
+  void _enhanceResume([JobContext? job]) {
+    _push<void>(
+      ResumeEnhanceScreen(
+        studio: _studio,
+        suggestedRoles: _discover.suggestions,
+        onUploadResume: _editCareerProfile,
+        job: job,
       ),
     );
   }
 
-  void _showMessage(String? message) {
-    if (message == null || !mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+  void _writeCoverLetter([JobContext? job]) {
+    _push<void>(
+      CoverLetterScreen(
+        studio: _studio,
+        onUploadResume: _editCareerProfile,
+        job: job,
+        trackedApplications: _workspace.data?.applications ?? const [],
+      ),
+    );
+  }
+
+  void _openDocument(CareerDocument document) {
+    _push<void>(DocumentScreen.saved(studio: _studio, document: document));
+  }
+
+  // Tracker -----------------------------------------------------------------
+
+  JobContext _contextForApplication(JobApplication application) => JobContext(
+        title: application.role,
+        company: application.company,
+        location: application.location,
+        applicationId: application.id,
+      );
+
+  void _openApplication(String id) {
+    _push<void>(
+      ApplicationDetailScreen(
+        applicationId: id,
+        controller: _workspace,
+        agenda: widget.agenda,
+        onWriteCoverLetter: (a) => _writeCoverLetter(_contextForApplication(a)),
+        onTailorResume: (a) => _enhanceResume(_contextForApplication(a)),
+      ),
+    );
   }
 
   /// The "+" button adapts to the current tab.
@@ -231,6 +334,8 @@ class _AppShellState extends State<AppShell> {
         await _addAgendaEvent();
       case _Tab.goals:
         await _addGoal();
+      case _Tab.studio:
+        _writeCoverLetter();
     }
   }
 
@@ -239,6 +344,7 @@ class _AppShellState extends State<AppShell> {
         _Tab.jobs => 'New application',
         _Tab.agenda => 'New interview or reminder',
         _Tab.goals => 'New goal',
+        _Tab.studio => 'New cover letter',
       };
 
   Future<void> _addApplication() async {
@@ -321,7 +427,7 @@ class _AppShellState extends State<AppShell> {
             section: _jobsSection,
             onSectionChanged: (section) =>
                 setState(() => _jobsSection = section),
-            discover: widget.discover,
+            discover: _discover,
             discoverSearchController: _discoverSearch,
             isListingSaved: _isListingSaved,
             onOpenListing: _openListing,
@@ -336,6 +442,13 @@ class _AppShellState extends State<AppShell> {
             controller: _workspace,
             onAdd: _addGoal,
             onIncrement: _incrementGoal,
+          ),
+          StudioScreen(
+            studio: _studio,
+            onUploadResume: _editCareerProfile,
+            onEnhanceResume: _enhanceResume,
+            onWriteCoverLetter: _writeCoverLetter,
+            onOpenDocument: _openDocument,
           ),
         ],
       ),

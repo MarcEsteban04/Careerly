@@ -19,6 +19,8 @@ class JobListingScreen extends StatefulWidget {
     required this.ranked,
     required this.isSaved,
     required this.onSave,
+    required this.onWriteCoverLetter,
+    required this.onTailorResume,
   });
 
   final RankedListing ranked;
@@ -26,6 +28,8 @@ class JobListingScreen extends StatefulWidget {
 
   /// Saves the job as a tracked application; resolves to true on success.
   final Future<bool> Function() onSave;
+  final VoidCallback onWriteCoverLetter;
+  final VoidCallback onTailorResume;
 
   @override
   State<JobListingScreen> createState() => _JobListingScreenState();
@@ -201,10 +205,24 @@ class _JobListingScreenState extends State<JobListingScreen> {
           AppSpacing.lg,
           AppSpacing.sm + bottomInset,
         ),
-        child: PrimaryButton(
-          label: 'Apply this job',
-          icon: Icons.arrow_outward_rounded,
-          onPressed: _apply,
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: widget.onWriteCoverLetter,
+                icon: const Icon(Icons.edit_note_rounded),
+                label: const Text('Cover letter'),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: PrimaryButton(
+                label: 'Apply',
+                icon: Icons.arrow_outward_rounded,
+                onPressed: _apply,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -370,6 +388,12 @@ class _JobListingScreenState extends State<JobListingScreen> {
           _muted(theme, "It doesn't mention your target roles or skills.")
         else
           for (final reason in match.reasons) _Bullet(reason, check: true),
+        const SizedBox(height: AppSpacing.md),
+        OutlinedButton.icon(
+          onPressed: widget.onTailorResume,
+          icon: const Icon(Icons.auto_fix_high_rounded),
+          label: const Text('Tailor my resume to this job'),
+        ),
       ],
     );
   }

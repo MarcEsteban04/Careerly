@@ -11,6 +11,7 @@ class ResumeInsights {
     this.yearsOfExperience,
     this.seniority,
     this.location,
+    this.textDocumentId,
   });
 
   factory ResumeInsights.fromJson(Map<String, dynamic> json) => ResumeInsights(
@@ -24,6 +25,7 @@ class ResumeInsights {
         yearsOfExperience: (json['years_of_experience'] as num?)?.round(),
         seniority: json['seniority'] as String?,
         location: json['location'] as String?,
+        textDocumentId: json['text_document_id'] as String?,
       );
 
   final String fileName;
@@ -44,6 +46,23 @@ class ResumeInsights {
   final String? seniority;
   final String? location;
 
+  /// Id of the saved document holding the resume's full text, used to
+  /// enhance it and write cover letters.
+  final String? textDocumentId;
+
+  ResumeInsights withTextDocument(String id) => ResumeInsights(
+        fileName: fileName,
+        uploadedAt: uploadedAt,
+        headline: headline,
+        summary: summary,
+        roles: roles,
+        skills: skills,
+        yearsOfExperience: yearsOfExperience,
+        seniority: seniority,
+        location: location,
+        textDocumentId: id,
+      );
+
   Map<String, dynamic> toJson() => {
         'file_name': fileName,
         'uploaded_at': uploadedAt.toIso8601String(),
@@ -54,6 +73,7 @@ class ResumeInsights {
         'years_of_experience': yearsOfExperience,
         'seniority': seniority,
         'location': location,
+        'text_document_id': textDocumentId,
       };
 
   static List<String> _strings(Object? value) => value is List

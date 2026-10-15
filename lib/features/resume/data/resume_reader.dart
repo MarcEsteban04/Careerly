@@ -6,7 +6,17 @@ import '../../../core/ai/ai_provider.dart';
 import '../../../core/ai/json_extract.dart';
 import 'resume_insights.dart';
 
-/// Reads a resume PDF with AI and returns its key facts.
+/// The result of reading a resume.
+class ResumeRead {
+  const ResumeRead(this.insights, this.text);
+
+  final ResumeInsights insights;
+
+  /// Full plain text, or null if it couldn't be recovered.
+  final String? text;
+}
+
+/// Reads a resume PDF with AI and returns its key facts and text.
 class ResumeReader {
   ResumeReader(this.ai);
 
@@ -29,8 +39,38 @@ Read the attached resume and return a JSON object with these keys:
 - "seniority": one of "Entry-level", "Junior", "Mid-level", "Senior", "Lead"
 - "location": city and country if stated, or null''';
 
-  Future<ResumeInsights> read(Uint8List pdfBytes, {required String fileName}) async {
-    final text = await _extractText(pdfBytes);
+  /// Reads the resume: its key facts, plus its full text (extracted locally,
+  /// or transcribed by AI for scanned PDFs) for later enhancement.
+  Future<ResumeRead> read(Uint8List pdfBytes, {required String fileName}) async {
+    final extracted = await _extractText(pdfBytes);
+    final insights = await _readInsights(pdfBytes, extracted, fileName);
+    final text = extracted ?? await _transcribe(pdfBytes);
+    return ResumeRead(insights, text);
+  }
+
+  Future<String?> _transcribe(Uint8List pdfBytes) async {
+    try {
+      final reply = await ai.complete(
+        AiRequest(
+          system: 'You transcribe documents faithfully.',
+          prompt: 'Transcribe this resume as plain text, keeping its sections '
+              'and bullet points. Output only the transcription.',
+          pdfBytes: pdfBytes,
+        ),
+      );
+      final text = reply.text.trim();
+      return text.isEmpty ? null : text;
+    } catch (e) {
+      debugPrint('Resume transcription failed: $e');
+      return null;
+    }
+  }
+
+  Future<ResumeInsights> _readInsights(
+    Uint8List pdfBytes,
+    String? text,
+    String fileName,
+  ) async {
     final reply = await ai.complete(
       AiRequest(
         system: _system,
