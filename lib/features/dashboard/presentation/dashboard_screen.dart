@@ -35,9 +35,17 @@ class DashboardScreen extends StatefulWidget {
     required this.onAddApplication,
     required this.onAddAgendaEvent,
     required this.onEventDone,
+    required this.onNotificationsTap,
+    this.newJobAlerts = 0,
   });
 
   final WorkspaceController controller;
+
+  /// Opens the notification center (the bell).
+  final VoidCallback onNotificationsTap;
+
+  /// New jobs found by alerts, added to the bell's badge.
+  final int newJobAlerts;
   final String? name;
   final String initial;
   final VoidCallback onAccountTap;
@@ -127,6 +135,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 )
                 .length ??
             0;
+        final badge = dueSoon + widget.newJobAlerts;
+        final tooltip = [
+          if (dueSoon > 0) '$dueSoon due in the next day',
+          if (widget.newJobAlerts > 0) '${widget.newJobAlerts} new jobs',
+        ];
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -173,11 +186,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 CircleIconButton(
                   icon: Icons.notifications_none_rounded,
-                  tooltip: dueSoon == 0
-                      ? 'Agenda'
-                      : 'Agenda, $dueSoon due in the next day',
-                  badge: dueSoon,
-                  onPressed: widget.onOpenAgenda,
+                  tooltip: tooltip.isEmpty
+                      ? 'Notifications'
+                      : 'Notifications, ${tooltip.join(', ')}',
+                  badge: badge,
+                  onPressed: widget.onNotificationsTap,
                 ),
               ],
             ),

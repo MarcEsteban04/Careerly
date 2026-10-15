@@ -23,4 +23,16 @@ class CareerProfileRepository {
     await _client.auth.updateUser(UserAttributes(data: {_key: profile.toJson()}));
     return profile;
   }
+
+  static const _onboardedKey = 'onboarded_at';
+
+  /// Whether Get started was finished or skipped on this account.
+  bool get isOnboarded =>
+      _client.auth.currentUser?.userMetadata?[_onboardedKey] != null;
+
+  Future<void> markOnboarded() => _client.auth.updateUser(
+        UserAttributes(
+          data: {_onboardedKey: DateTime.now().toUtc().toIso8601String()},
+        ),
+      );
 }

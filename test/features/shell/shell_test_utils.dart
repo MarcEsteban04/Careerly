@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import 'package:careerly/core/theme/app_theme.dart';
 import 'package:careerly/features/agenda/data/agenda_event.dart';
@@ -24,6 +28,10 @@ import 'package:careerly/features/profile/data/career_profile_repository.dart';
 import 'package:careerly/features/shell/presentation/app_shell.dart';
 import 'package:careerly/features/goals/data/goal.dart';
 import 'package:careerly/features/goals/data/goals_repository.dart';
+import 'package:careerly/features/interview_prep/data/interview_coach.dart';
+import 'package:careerly/features/interview_prep/data/interview_prep.dart';
+import 'package:careerly/features/interview_prep/data/interview_prep_repository.dart';
+import 'package:careerly/features/notifications/data/notifications.dart';
 
 import '../auth/auth_test_utils.dart';
 
@@ -195,6 +203,9 @@ class FakeAppLock implements AppLockRepository {
   Future<bool> isEnabled() async => false;
 
   @override
+  Future<void> markOffered() async {}
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -301,6 +312,9 @@ Future<void> pumpShell(
   FakeEventsRepository? events,
   Future<bool> Function(Uri url)? openUrl,
   ThemeData? theme,
+  FakeNotifications? notifications,
+  InterviewCoach? interviewCoach,
+  FakeInterviewPrepRepository? interviewPreps,
 }) async {
   tester.platformDispatcher.accessibilityFeaturesTestValue =
       const FakeAccessibilityFeatures(disableAnimations: true);
@@ -309,6 +323,7 @@ Future<void> pumpShell(
     ..physicalSize = const Size(1170, 2532)
     ..devicePixelRatio = 3;
   addTearDown(tester.view.reset);
+  useInMemoryPrefs();
 
   await tester.pumpWidget(
     MaterialApp(
@@ -323,16 +338,31 @@ Future<void> pumpShell(
         studio: studio ?? fakeStudio(),
         events: events ?? FakeEventsRepository(),
         openUrl: openUrl ?? (_) async => true,
+        notifications: notifications ?? FakeNotifications(),
+        interviewCoach: interviewCoach,
+        interviewPreps: interviewPreps ?? FakeInterviewPrepRepository(),
       ),
     ),
   );
   await tester.pumpAndSettle();
 }
 
+class FakeInterviewPrepRepository implements InterviewPrepRepository {
+  final saved = <String, InterviewPrep>{};
+
+  @override
+  Future<InterviewPrep?> fetch(String applicationId) async =>
+      saved[applicationId];
+
+  @override
+  Future<void> save(String applicationId, InterviewPrep prep) async =>
+      saved[applicationId] = prep;
+}
+
 class FakeJSearchClient extends JSearchClient {
   FakeJSearchClient([this.listings = const []]) : super(apiKey: 'test');
 
-  final List<JobListing> listings;
+  List<JobListing> listings;
   final queries = <JobSearchQuery>[];
 
   @override
@@ -353,17 +383,79 @@ class FakeCareerProfileRepository implements CareerProfileRepository {
   @override
   Future<CareerProfile> save(CareerProfile profile) async =>
       this.profile = profile;
+
+  /// Defaults to true so Get started stays out of unrelated tests.
+  bool onboarded = true;
+
+  @override
+  bool get isOnboarded => onboarded;
+
+  @override
+  Future<void> markOnboarded() async => onboarded = true;
+}
+
+/// Records notifications instead of showing them.
+class FakeNotifications implements Notifications {
+  final shown = <AppNotification>[];
+  final scheduled = <int, (AppNotification, DateTime)>{};
+  final tapController = StreamController<String>.broadcast();
+  String? launchPayload;
+  bool permitted = true;
+  int permissionRequests = 0;
+
+  @override
+  Future<bool> requestPermission() async {
+    permissionRequests++;
+    return permitted;
+  }
+
+  @override
+  Future<bool> isPermitted() async => permitted;
+
+  @override
+  Future<void> show(AppNotification notification) async =>
+      shown.add(notification);
+
+  @override
+  Future<void> schedule(AppNotification notification, DateTime at) async =>
+      scheduled[notification.id] = (notification, at);
+
+  @override
+  Future<Set<int>> scheduledIds() async => scheduled.keys.toSet();
+
+  @override
+  Future<void> cancel(int id) async => scheduled.remove(id);
+
+  @override
+  Stream<String> get taps => tapController.stream;
+
+  @override
+  Future<String?> takeLaunchPayload() async {
+    final payload = launchPayload;
+    launchPayload = null;
+    return payload;
+  }
+
+  @override
+  Future<void> openSettings() async {}
+}
+
+/// Device storage for tests (SharedPreferencesAsync).
+void useInMemoryPrefs() {
+  SharedPreferencesAsyncPlatform.instance =
+      InMemorySharedPreferencesAsync.empty();
 }
 
 DiscoverController fakeDiscover({
   List<JobListing> listings = const [],
   CareerProfile profile = const CareerProfile(),
   FakePreferencesRepository? preferences,
+  FakeCareerProfileRepository? profiles,
 }) =>
     DiscoverController(
       jsearch: FakeJSearchClient(listings),
       jooble: JoobleClient(apiKey: ''),
-      profiles: FakeCareerProfileRepository(profile),
+      profiles: profiles ?? FakeCareerProfileRepository(profile),
       preferences: preferences,
     );
 

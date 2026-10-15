@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/ai/ai_chain.dart';
 import '../../../core/utils/error_message.dart';
+import '../../job_alerts/data/job_alert_store.dart';
 import '../../profile/data/career_profile.dart';
 import '../../profile/data/career_profile_repository.dart';
 import '../../resume/data/resume_reader.dart';
@@ -37,6 +38,7 @@ class DiscoverController extends ChangeNotifier {
     this.aiRanker,
     this.resumeReader,
     this.preferences,
+    this.alerts,
   }) : _profile = profiles.read() {
     _loadPreferences();
   }
@@ -52,8 +54,12 @@ class DiscoverController extends ChangeNotifier {
   /// without them.
   final SearchPreferencesRepository? preferences;
 
+  /// Device copy of saved searches for background job alerts; optional.
+  final JobAlertStore? alerts;
+
   List<SavedSearch> _savedSearches = const [];
   Set<String> _dismissed = const {};
+  Map<String, int> _freshCounts = const {};
 
   final _cache = <String, List<JobListing>>{};
 
@@ -90,6 +96,11 @@ class DiscoverController extends ChangeNotifier {
 
   List<SavedSearch> get savedSearches => _savedSearches;
 
+  /// New jobs a job alert found for [search] that haven't been viewed.
+  int freshCount(SavedSearch search) => _freshCounts[search.id] ?? 0;
+
+  int get totalFresh => _freshCounts.values.fold(0, (sum, n) => sum + n);
+
   /// Whether the current search is bookmarked.
   bool get isCurrentSearchSaved => _savedSearches
       .any((s) => s.matches(_keywords, _scope, _postedWithin));
@@ -104,6 +115,7 @@ class DiscoverController extends ChangeNotifier {
 
   Future<void> saveProfile(CareerProfile profile) async {
     _profile = await profiles.save(profile);
+    _syncAlerts(() => alerts?.setLocation(_profile.effectiveLocation));
     final listings = _listings;
     if (listings != null) {
       _results = _rankByKeywords(listings);
@@ -260,9 +272,36 @@ class DiscoverController extends ChangeNotifier {
       final listings = _listings;
       if (listings != null) _results = _rankByKeywords(listings);
       notifyListeners();
+      await _syncAlerts(() async {
+        await alerts?.setSearches(saved);
+        await alerts?.setDismissed(dismissed);
+        await alerts?.setLocation(_profile.effectiveLocation);
+      });
+      await refreshAlerts();
     } catch (e) {
       // Tables missing (migration not run yet) or offline: search still works.
       debugPrint('Search preferences unavailable: $e');
+    }
+  }
+
+  /// Reloads new-job counts, e.g. after the background check ran.
+  Future<void> refreshAlerts() async {
+    final store = alerts;
+    if (store == null) return;
+    try {
+      _freshCounts = await store.freshCounts();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Job alert counts unavailable: $e');
+    }
+  }
+
+  /// Device storage for alerts is best-effort; it never blocks searching.
+  Future<void> _syncAlerts(Future<void>? Function() write) async {
+    try {
+      await write();
+    } catch (e) {
+      debugPrint('Job alert sync failed: $e');
     }
   }
 
@@ -288,18 +327,33 @@ class DiscoverController extends ChangeNotifier {
           postedWithin: _postedWithin,
         );
         _savedSearches = [saved, ..._savedSearches];
+        // What's on screen now isn't news: alert only on later postings.
+        final shown = _listings ?? const <JobListing>[];
+        await _syncAlerts(
+          () => alerts?.markSeen(saved.id, shown.map((l) => l.dedupeKey)),
+        );
       }
       notifyListeners();
+      await _syncAlerts(() => alerts?.setSearches(_savedSearches));
       return null;
     } catch (e) {
       return _preferenceError(e);
     }
   }
 
-  Future<void> runSavedSearch(SavedSearch search) {
+  Future<void> runSavedSearch(SavedSearch search) async {
     _scope = search.scope;
     _postedWithin = search.postedWithin;
-    return this.search(search.keywords);
+    if (_freshCounts.containsKey(search.id)) {
+      _freshCounts = {..._freshCounts}..remove(search.id);
+      notifyListeners();
+    }
+    await _syncAlerts(() => alerts?.clearFresh(search.id));
+    await this.search(search.keywords);
+    final shown = _listings ?? const <JobListing>[];
+    await _syncAlerts(
+      () => alerts?.markSeen(search.id, shown.map((l) => l.dedupeKey)),
+    );
   }
 
   Future<String?> deleteSavedSearch(SavedSearch search) async {
@@ -311,7 +365,9 @@ class DiscoverController extends ChangeNotifier {
         for (final s in _savedSearches)
           if (s.id != search.id) s,
       ];
+      _freshCounts = {..._freshCounts}..remove(search.id);
       notifyListeners();
+      await _syncAlerts(() => alerts?.setSearches(_savedSearches));
       return null;
     } catch (e) {
       return _preferenceError(e);
@@ -326,6 +382,7 @@ class DiscoverController extends ChangeNotifier {
     _refreshResults();
     try {
       await preferences?.dismiss(job);
+      await _syncAlerts(() => alerts?.setDismissed(_dismissed));
       return null;
     } catch (e) {
       _dismissed = before;

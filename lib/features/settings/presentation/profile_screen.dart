@@ -10,6 +10,8 @@ import '../../../core/widgets/section_header.dart';
 import '../../auth/data/app_lock_repository.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../discover/data/discover_controller.dart';
+import '../../notifications/data/notification_settings.dart';
+import '../../notifications/data/notifications.dart';
 import '../../profile/data/career_profile.dart';
 import '../../resume/data/resume_insights.dart';
 
@@ -22,10 +24,18 @@ class ProfileScreen extends StatelessWidget {
     required this.appLock,
     required this.discover,
     required this.onEditCareerProfile,
+    required this.notifications,
+    required this.notificationSettings,
+    required this.onNotificationSettingsChanged,
   });
 
   final AuthRepository authRepository;
   final AppLockRepository appLock;
+  final Notifications notifications;
+  final NotificationSettings notificationSettings;
+
+  /// Re-syncs reminders after a switch changes.
+  final VoidCallback onNotificationSettingsChanged;
 
   /// Owns the career profile; rebuilding on it keeps this screen current.
   final DiscoverController discover;
@@ -71,6 +81,13 @@ class ProfileScreen extends StatelessWidget {
                       _ResumeCard(
                         resume: profile.resume,
                         onUpload: onEditCareerProfile,
+                      ),
+                      const SizedBox(height: AppSpacing.xl),
+                      const SectionHeader(title: 'Notifications'),
+                      _NotificationsCard(
+                        notifications: notifications,
+                        settings: notificationSettings,
+                        onChanged: onNotificationSettingsChanged,
                       ),
                       const SizedBox(height: AppSpacing.xl),
                       const SectionHeader(title: 'Security'),
@@ -440,6 +457,161 @@ class _Fact extends StatelessWidget {
               style: theme.textTheme.bodyMedium
                   ?.copyWith(fontWeight: FontWeight.w500),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Reminder and job-alert switches, plus a fix-it row when the OS has
+/// notifications turned off for the app.
+class _NotificationsCard extends StatefulWidget {
+  const _NotificationsCard({
+    required this.notifications,
+    required this.settings,
+    required this.onChanged,
+  });
+
+  final Notifications notifications;
+  final NotificationSettings settings;
+  final VoidCallback onChanged;
+
+  @override
+  State<_NotificationsCard> createState() => _NotificationsCardState();
+}
+
+class _NotificationsCardState extends State<_NotificationsCard>
+    with WidgetsBindingObserver {
+  bool _reminders = true;
+  bool _jobAlerts = true;
+  bool _permitted = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Back from system settings: the permission may have changed.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final (reminders, jobAlerts, permitted) = await (
+        widget.settings.remindersEnabled(),
+        widget.settings.jobAlertsEnabled(),
+        widget.notifications.isPermitted(),
+      ).wait;
+      if (!mounted) return;
+      setState(() {
+        _reminders = reminders;
+        _jobAlerts = jobAlerts;
+        _permitted = permitted;
+      });
+    } catch (e) {
+      debugPrint('Notification settings unavailable: $e');
+    }
+  }
+
+  Future<void> _allow() async {
+    final granted = await widget.notifications.requestPermission();
+    if (!granted) await widget.notifications.openSettings();
+    if (mounted) setState(() => _permitted = granted);
+    if (granted) widget.onChanged();
+  }
+
+  Future<void> _set({bool? reminders, bool? jobAlerts}) async {
+    setState(() {
+      _reminders = reminders ?? _reminders;
+      _jobAlerts = jobAlerts ?? _jobAlerts;
+    });
+    if (reminders != null) await widget.settings.setRemindersEnabled(reminders);
+    if (jobAlerts != null) await widget.settings.setJobAlertsEnabled(jobAlerts);
+    if ((reminders ?? false) || (jobAlerts ?? false)) {
+      final granted = await widget.notifications.requestPermission();
+      if (mounted) setState(() => _permitted = granted);
+    }
+    widget.onChanged();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final blocked = !_permitted && (_reminders || _jobAlerts);
+
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          if (blocked)
+            Container(
+              margin: const EdgeInsets.fromLTRB(
+                AppSpacing.sm,
+                AppSpacing.sm,
+                AppSpacing.sm,
+                0,
+              ),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.sm,
+                AppSpacing.xxs,
+                AppSpacing.xxs,
+                AppSpacing.xxs,
+              ),
+              decoration: BoxDecoration(
+                color: colorScheme.errorContainer.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.notifications_off_outlined,
+                    size: 18,
+                    color: colorScheme.error,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(
+                      'Notifications are off for Careerly',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  TextButton(onPressed: _allow, child: const Text('Turn on')),
+                ],
+              ),
+            ),
+          SwitchListTile(
+            secondary:
+                Icon(Icons.event_available_rounded, color: colorScheme.primary),
+            title: const Text('Reminders'),
+            subtitle: const Text(
+              'Before interviews, and for follow-ups and deadlines',
+            ),
+            value: _reminders,
+            onChanged: (v) => _set(reminders: v),
+          ),
+          const Divider(height: 1, indent: 72),
+          SwitchListTile(
+            secondary: Icon(
+              Icons.notifications_active_outlined,
+              color: colorScheme.primary,
+            ),
+            title: const Text('Job alerts'),
+            subtitle: const Text('New jobs for your saved searches, daily'),
+            value: _jobAlerts,
+            onChanged: (v) => _set(jobAlerts: v),
           ),
         ],
       ),

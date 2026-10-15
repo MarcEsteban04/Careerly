@@ -33,6 +33,7 @@ class ApplicationDetailScreen extends StatefulWidget {
     required this.events,
     required this.onWriteCoverLetter,
     required this.onTailorResume,
+    required this.onInterviewPrep,
     required this.onApply,
   });
 
@@ -41,6 +42,7 @@ class ApplicationDetailScreen extends StatefulWidget {
   final AgendaRepository agenda;
   final ValueChanged<JobApplication> onWriteCoverLetter;
   final ValueChanged<JobApplication> onTailorResume;
+  final ValueChanged<JobApplication> onInterviewPrep;
 
   /// Opens the application kit for this job.
   final ValueChanged<JobApplication> onApply;
@@ -205,6 +207,11 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                 onTap: () => Navigator.of(context).pop('tailor'),
               ),
               ListTile(
+                leading: const Icon(Icons.record_voice_over_outlined),
+                title: const Text('Prepare for the interview'),
+                onTap: () => Navigator.of(context).pop('prep'),
+              ),
+              ListTile(
                 leading: Icon(
                   Icons.delete_outline_rounded,
                   color: Theme.of(context).colorScheme.error,
@@ -224,6 +231,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     if (action == 'open') await _openJobPost(application.jobUrl!);
     if (action == 'letter') widget.onWriteCoverLetter(application);
     if (action == 'tailor') widget.onTailorResume(application);
+    if (action == 'prep') widget.onInterviewPrep(application);
     if (action == 'edit') await _editDetails(application);
     if (action == 'delete') await _confirmDelete(application);
   }
@@ -292,6 +300,12 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                 ),
                 children: [
                   _Header(application: application),
+                  if (application.status == ApplicationStatus.interviewing) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _InterviewPrepCard(
+                      onTap: () => widget.onInterviewPrep(application),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.lg),
                   SegmentedTabs(
                     labels: const ['Overview', 'Timeline', 'Agenda', 'Notes'],
@@ -514,6 +528,61 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
           label: const Text('Save notes'),
         ),
       ],
+    );
+  }
+}
+
+/// Shown while interviewing: a shortcut to the AI interview kit.
+class _InterviewPrepCard extends StatelessWidget {
+  const _InterviewPrepCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return AppCard(
+      onTap: onTap,
+      color: colorScheme.primary.withValues(alpha: 0.06),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: colorScheme.primary,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: Icon(
+              Icons.record_voice_over_outlined,
+              color: colorScheme.onPrimary,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Prepare for your interview',
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Likely questions, answers from your resume, and what to '
+                  'ask them.',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right_rounded, color: colorScheme.onSurfaceVariant),
+        ],
+      ),
     );
   }
 }

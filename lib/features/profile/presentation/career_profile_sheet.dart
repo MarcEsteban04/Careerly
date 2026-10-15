@@ -1,8 +1,6 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../core/ai/ai_chain.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/error_message.dart';
 import '../../../core/widgets/choice_chip_group.dart';
@@ -11,12 +9,8 @@ import '../../../core/widgets/form_sheet.dart';
 import '../../../core/widgets/labeled_field.dart';
 import '../../resume/data/resume_insights.dart';
 import '../../resume/presentation/resume_card.dart';
+import '../../resume/presentation/resume_upload.dart';
 import '../data/career_profile.dart';
-
-typedef ResumeReaderCallback = Future<ResumeInsights> Function(
-  Uint8List bytes,
-  String fileName,
-);
 
 /// Edits the career profile (and resume) that power job search and match
 /// scores. Resolves to true when saved.
@@ -93,55 +87,40 @@ class _CareerProfileFormState extends State<_CareerProfileForm> {
       .toList();
 
   Future<void> _uploadResume() async {
-    final files = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['pdf'],
+    final result = await pickAndReadResume(
+      read: widget.onReadResume,
+      onReading: () {
+        if (!mounted) return;
+        setState(() {
+          _isReadingResume = true;
+          _resumeMessage = null;
+        });
+      },
     );
-    if (files.isEmpty || !mounted) return;
-    final file = files.first;
-
+    if (!mounted) return;
     setState(() {
-      _isReadingResume = true;
-      _resumeMessage = null;
-    });
-    try {
-      final bytes = await file.xFile.readAsBytes();
-      if (bytes.length > 10 * 1024 * 1024) {
-        throw const FormatException('That PDF is over 10 MB.');
+      _isReadingResume = false;
+      switch (result) {
+        case null:
+          break;
+        case ResumeUploaded(:final resume, :final summary):
+          _resume = resume;
+          _resumeFailed = false;
+          // Fill blanks; never overwrite what the user typed.
+          if (_yearsController.text.isEmpty &&
+              resume.yearsOfExperience != null) {
+            _yearsController.text = '${resume.yearsOfExperience}';
+          }
+          if (_locationController.text.isEmpty && resume.location != null) {
+            _locationController.text = resume.location!;
+          }
+          _resumeMessage = "$summary They're combined with what you enter "
+              'below to tailor your matches.';
+        case ResumeUploadFailed(:final message):
+          _resumeFailed = true;
+          _resumeMessage = message;
       }
-      final resume = await widget.onReadResume(bytes, file.name);
-      if (!mounted) return;
-      setState(() {
-        _resume = resume;
-        _resumeFailed = false;
-        // Fill blanks; never overwrite what the user typed.
-        if (_yearsController.text.isEmpty && resume.yearsOfExperience != null) {
-          _yearsController.text = '${resume.yearsOfExperience}';
-        }
-        if (_locationController.text.isEmpty && resume.location != null) {
-          _locationController.text = resume.location!;
-        }
-        _resumeMessage = 'Found ${resume.roles.length} roles and '
-            '${resume.skills.length} skills. They\'re combined with what you '
-            'enter below to tailor your matches.';
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _resumeFailed = true;
-        _resumeMessage = switch (error) {
-          FormatException(:final message) when message.contains('MB') => message,
-          AiUnavailableException(allOutOfQuota: true) =>
-            'All AI providers are out of credit right now. Try again later.',
-          AiUnavailableException() =>
-            "Couldn't read your resume. Check your connection and try again.",
-          _ => "Couldn't read that PDF. Try another file, or fill in the "
-              'fields below.',
-        };
-      });
-    } finally {
-      if (mounted) setState(() => _isReadingResume = false);
-    }
+    });
   }
 
   Future<void> _submit() async {

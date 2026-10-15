@@ -30,6 +30,13 @@ class SavedSearch {
   final SearchScope scope;
   final PostedWithin postedWithin;
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'keywords': keywords,
+        'scope': scope.name,
+        'posted_within': postedWithin.name,
+      };
+
   String get label => scope == SearchScope.philippines
       ? keywords
       : '$keywords · ${scope.label}';

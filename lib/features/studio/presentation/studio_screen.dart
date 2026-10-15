@@ -19,6 +19,7 @@ class StudioScreen extends StatelessWidget {
     required this.onUploadResume,
     required this.onEnhanceResume,
     required this.onWriteCoverLetter,
+    required this.onInterviewPrep,
     required this.onOpenDocument,
   });
 
@@ -26,6 +27,7 @@ class StudioScreen extends StatelessWidget {
   final Future<void> Function() onUploadResume;
   final VoidCallback onEnhanceResume;
   final VoidCallback onWriteCoverLetter;
+  final VoidCallback onInterviewPrep;
   final ValueChanged<CareerDocument> onOpenDocument;
 
   @override
@@ -43,7 +45,7 @@ class StudioScreen extends StatelessWidget {
 
         return TabPage(
           title: 'Studio',
-          subtitle: 'AI resume and cover letters',
+          subtitle: 'AI resumes, cover letters and interview prep',
           onRefresh: studio.load,
           children: [
             _ResumeCard(
@@ -71,6 +73,15 @@ class StudioScreen extends StatelessWidget {
                       title: 'Cover letter',
                       subtitle: 'Tailored to a specific job',
                       onTap: onWriteCoverLetter,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: _ToolCard(
+                      icon: Icons.record_voice_over_outlined,
+                      title: 'Interview prep',
+                      subtitle: 'Practice questions for a job you track',
+                      onTap: onInterviewPrep,
                     ),
                   ),
                 ],
@@ -235,7 +246,8 @@ class _ToolCard extends StatelessWidget {
       child: AppCard(
         onTap: onTap,
         padding: const EdgeInsets.all(AppSpacing.sm),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
               width: 36,
@@ -246,15 +258,13 @@ class _ToolCard extends StatelessWidget {
               ),
               child: Icon(icon, size: 20, color: colorScheme.primary),
             ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w600),
-              ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w600, height: 1.25),
             ),
           ],
         ),

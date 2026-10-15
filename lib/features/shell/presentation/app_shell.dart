@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -34,8 +36,20 @@ import '../../goals/data/goal.dart';
 import '../../goals/data/goals_repository.dart';
 import '../../goals/presentation/goal_form_sheet.dart';
 import '../../goals/presentation/goals_screen.dart';
+import '../../interview_prep/data/interview_coach.dart';
+import '../../interview_prep/data/interview_prep_repository.dart';
+import '../../interview_prep/presentation/interview_prep_screen.dart';
+import '../../interview_prep/presentation/pick_application_sheet.dart';
+import '../../job_alerts/data/job_alert_checker.dart';
+import '../../job_alerts/data/job_alert_store.dart';
+import '../../notifications/data/local_notifications.dart';
+import '../../notifications/data/notification_settings.dart';
+import '../../notifications/data/notifications.dart';
+import '../../notifications/presentation/notification_center_sheet.dart';
+import '../../onboarding/presentation/get_started_screen.dart';
 import '../../profile/data/career_profile_repository.dart';
 import '../../profile/presentation/career_profile_sheet.dart';
+import '../../reminders/data/reminder_scheduler.dart';
 import '../../resume/data/resume_insights.dart';
 import '../../resume/data/resume_reader.dart';
 import '../../settings/presentation/profile_screen.dart';
@@ -64,14 +78,27 @@ class AppShell extends StatefulWidget {
     this.studio,
     ApplicationEventsRepository? events,
     Future<bool> Function(Uri url)? openUrl,
+    Notifications? notifications,
+    NotificationSettings? notificationSettings,
+    this.interviewCoach,
+    this.interviewPreps,
+    this.afterSignIn,
   })  : events = events ?? ApplicationEventsRepository(),
         openUrl = openUrl ?? _openExternally,
         applications = applications ?? ApplicationsRepository(),
         agenda = agenda ?? AgendaRepository(),
-        goals = goals ?? GoalsRepository();
+        goals = goals ?? GoalsRepository(),
+        notifications = notifications ?? LocalNotifications.instance,
+        notificationSettings = notificationSettings ?? NotificationSettings();
 
   final AuthRepository authRepository;
   final AppLockRepository appLock;
+  final Notifications notifications;
+  final NotificationSettings notificationSettings;
+
+  /// Runs once the app is showing after a fresh sign-in (e.g. to offer
+  /// biometric unlock), unless Get started is shown instead.
+  final VoidCallback? afterSignIn;
   final ApplicationsRepository applications;
   final AgendaRepository agenda;
   final GoalsRepository goals;
@@ -86,6 +113,8 @@ class AppShell extends StatefulWidget {
   /// Overrides for tests; built from the app config when null.
   final DiscoverController? discover;
   final StudioController? studio;
+  final InterviewCoach? interviewCoach;
+  final InterviewPrepRepository? interviewPreps;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -142,7 +171,35 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         aiRanker: AiJobRanker(_ai),
         resumeReader: ResumeReader(_ai),
         preferences: SearchPreferencesRepository(),
+        alerts: _alertStore,
       );
+
+  final _alertStore = JobAlertStore();
+
+  late final _reminders = ReminderScheduler(
+    notifications: widget.notifications,
+    settings: widget.notificationSettings,
+  );
+
+  late final _jobAlerts = JobAlertChecker(
+    store: _alertStore,
+    settings: widget.notificationSettings,
+    notifications: widget.notifications,
+    jsearch: _discover.jsearch,
+    jooble: _discover.jooble,
+  );
+
+  late final _coach = widget.interviewCoach ?? InterviewCoach(_ai);
+  late final _interviewPreps =
+      widget.interviewPreps ?? InterviewPrepRepository();
+
+  StreamSubscription<String>? _notificationTaps;
+
+  /// Agenda state last sent to the reminder scheduler.
+  String? _remindersKey;
+
+  /// A saved search a notification asked for before searches had loaded.
+  String? _pendingSearchId;
 
   late final StudioController _studio = (widget.studio ??
       StudioController(
@@ -167,16 +224,27 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _workspace.addListener(_syncReminders);
+    _discover.addListener(_runPendingSearch);
+    _notificationTaps = widget.notifications.taps.listen(_openNotification);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startUp());
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _confirmPendingApply();
+    if (state == AppLifecycleState.resumed) {
+      _confirmPendingApply();
+      // The background check may have found jobs while we were away.
+      _discover.refreshAlerts();
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _notificationTaps?.cancel();
+    _workspace.removeListener(_syncReminders);
+    _discover.removeListener(_runPendingSearch);
     _workspace.dispose();
     _discover.dispose();
     _studio.dispose();
@@ -187,6 +255,144 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   void _select(_Tab tab) => setState(() => _tab = tab);
+
+  // Start-up -------------------------------------------------------------------
+
+  Future<void> _startUp() async {
+    if (!mounted) return;
+    try {
+      final payload = await widget.notifications.takeLaunchPayload();
+      if (payload != null) _openNotification(payload);
+    } catch (e) {
+      debugPrint('Launch notification unavailable: $e');
+    }
+    if (!mounted) return;
+
+    final profiles = _discover.profiles;
+    if (!profiles.isOnboarded && _discover.profile.isEmpty) {
+      await _getStarted();
+    } else {
+      widget.afterSignIn?.call();
+    }
+    await _checkJobAlerts();
+  }
+
+  /// First-run setup, which also builds the career profile.
+  Future<void> _getStarted() async {
+    final result = await Navigator.of(context).push<GetStartedResult>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => GetStartedScreen(
+          firstName: widget.authRepository.currentUserName?.split(' ').first,
+          initial: _discover.profile,
+          canReadResumes: _discover.canReadResumes,
+          onReadResume: _readResume,
+          onSaveProfile: _discover.saveProfile,
+          notifications: widget.notifications,
+          settings: widget.notificationSettings,
+          appLock: widget.appLock,
+        ),
+      ),
+    );
+    try {
+      await _discover.profiles.markOnboarded();
+    } catch (e) {
+      debugPrint("Couldn't record onboarding: $e");
+    }
+    if (!mounted) return;
+    _syncReminders(force: true);
+    if (result == GetStartedResult.findJobs) {
+      setState(() {
+        _tab = _Tab.jobs;
+        _jobsSection = JobsSection.discover;
+      });
+      _discover.search('');
+    } else {
+      setState(() {});
+    }
+  }
+
+  // Notifications --------------------------------------------------------------
+
+  /// Keeps scheduled reminders in step with the agenda.
+  void _syncReminders({bool force = false}) {
+    final upcoming = _workspace.data?.upcoming;
+    if (upcoming == null) return;
+    final key = [
+      for (final e in upcoming)
+        '${e.id}|${e.startsAt.toIso8601String()}|${e.isDone}|${e.title}',
+    ].join(';');
+    if (!force && key == _remindersKey) return;
+    _remindersKey = key;
+    _reminders.sync(upcoming);
+  }
+
+  /// Runs an overdue job-alert check while the app is open (the OS may
+  /// defer the background one), then refreshes the "new" badges.
+  Future<void> _checkJobAlerts() async {
+    try {
+      if (await _jobAlerts.isDue()) await _jobAlerts.run(notify: false);
+    } catch (e) {
+      debugPrint('Job alert check failed: $e');
+    }
+    await _discover.refreshAlerts();
+  }
+
+  void _openNotification(String payload) {
+    final route = NotificationRoute.parse(payload);
+    if (route == null || !mounted) return;
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    switch (route) {
+      case OpenApplicationRoute(:final applicationId):
+        _openApplication(applicationId);
+      case OpenSavedSearchRoute(:final searchId):
+        _openSavedSearch(searchId);
+      case OpenAgendaRoute():
+        _select(_Tab.agenda);
+    }
+  }
+
+  void _openSavedSearch(String id) {
+    setState(() {
+      _tab = _Tab.jobs;
+      _jobsSection = JobsSection.discover;
+    });
+    if (!_runSavedSearch(id)) _pendingSearchId = id;
+  }
+
+  bool _runSavedSearch(String id) {
+    final search = _discover.savedSearches.where((s) => s.id == id).firstOrNull;
+    if (search == null) return false;
+    _discoverSearch.text = search.keywords;
+    _discover.runSavedSearch(search);
+    return true;
+  }
+
+  void _runPendingSearch() {
+    final id = _pendingSearchId;
+    if (id != null && _runSavedSearch(id)) _pendingSearchId = null;
+  }
+
+  void _openNotificationCenter() {
+    final until = DateTime.now().add(const Duration(days: 2));
+    showNotificationCenter(
+      context,
+      alerts: [
+        for (final search in _discover.savedSearches)
+          if (_discover.freshCount(search) > 0)
+            (search, _discover.freshCount(search)),
+      ],
+      upcoming: [
+        for (final event in _workspace.data?.upcoming ?? const <AgendaEvent>[])
+          if (!event.isDone && event.startsAt.isBefore(until)) event,
+      ].take(6).toList(),
+      onOpenSearch: (search) => _openSavedSearch(search.id),
+      onOpenEvent: (event) => event.applicationId == null
+          ? _select(_Tab.agenda)
+          : _openApplication(event.applicationId!),
+      onOpenSettings: _openProfile,
+    );
+  }
 
   /// Open agenda items in the next 24 hours, shown as a badge on Agenda.
   int get _dueSoonCount {
@@ -486,6 +692,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           appLock: widget.appLock,
           discover: _discover,
           onEditCareerProfile: _editCareerProfile,
+          notifications: widget.notifications,
+          notificationSettings: widget.notificationSettings,
+          onNotificationSettingsChanged: () => _syncReminders(force: true),
         ),
       ),
     );
@@ -533,6 +742,52 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _push<void>(DocumentScreen.saved(studio: _studio, document: document));
   }
 
+  // Interview prep ------------------------------------------------------------
+
+  Future<void> _pickInterviewPrep() async {
+    final applications = _workspace.data?.applications ?? const [];
+    if (applications.every((a) => a.status == ApplicationStatus.rejected)) {
+      _showMessage('Track a job first, then prepare for its interview here.');
+      return;
+    }
+    final application = await showPickApplicationSheet(
+      context,
+      applications: applications,
+    );
+    if (application != null && mounted) _openInterviewPrep(application);
+  }
+
+  void _openInterviewPrep(JobApplication application) {
+    final interview = _workspace.data?.upcoming
+        .where(
+          (e) =>
+              e.applicationId == application.id &&
+              e.kind == AgendaEventKind.interview &&
+              !e.isDone,
+        )
+        .firstOrNull;
+    _push<void>(
+      InterviewPrepScreen(
+        application: application,
+        coach: _coach,
+        repository: _interviewPreps,
+        profile: () => _discover.profile,
+        resumeText: _resumeTextIfAny,
+        onUploadResume: _editCareerProfile,
+        interviewAt: interview?.startsAt,
+      ),
+    );
+  }
+
+  Future<String?> _resumeTextIfAny() async {
+    try {
+      return await _studio.resumeText();
+    } catch (_) {
+      // No resume yet (or it couldn't load): prep works without it.
+      return null;
+    }
+  }
+
   // Tracker -----------------------------------------------------------------
 
   JobContext _contextForApplication(JobApplication application) => JobContext(
@@ -551,6 +806,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         agenda: widget.agenda,
         onWriteCoverLetter: (a) => _writeCoverLetter(_contextForApplication(a)),
         onTailorResume: (a) => _enhanceResume(_contextForApplication(a)),
+        onInterviewPrep: _openInterviewPrep,
         events: widget.events,
         onApply: (a) => _startApply(
           job: _contextForApplication(a),
@@ -647,19 +903,24 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       body: IndexedStack(
         index: _tab.index,
         children: [
-          DashboardScreen(
-            controller: _workspace,
-            name: name,
-            initial:
-                (name ?? email).characters.firstOrNull?.toUpperCase() ?? '?',
-            onAccountTap: _openProfile,
-            onSearchTap: _openJobsSearch,
-            onOpenApplication: _openApplication,
-            onSeeAllApplications: _openJobs,
-            onAddApplication: _addApplication,
-            onAddAgendaEvent: _addAgendaEvent,
-            onEventDone: (id) => _setEventDone(id, true),
-            onOpenAgenda: () => _select(_Tab.agenda),
+          ListenableBuilder(
+            listenable: _discover,
+            builder: (context, _) => DashboardScreen(
+              controller: _workspace,
+              name: name,
+              initial:
+                  (name ?? email).characters.firstOrNull?.toUpperCase() ?? '?',
+              onAccountTap: _openProfile,
+              onSearchTap: _openJobsSearch,
+              onOpenApplication: _openApplication,
+              onSeeAllApplications: _openJobs,
+              onAddApplication: _addApplication,
+              onAddAgendaEvent: _addAgendaEvent,
+              onEventDone: (id) => _setEventDone(id, true),
+              onOpenAgenda: () => _select(_Tab.agenda),
+              onNotificationsTap: _openNotificationCenter,
+              newJobAlerts: _discover.totalFresh,
+            ),
           ),
           ApplicationsScreen(
             controller: _workspace,
@@ -697,6 +958,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             onUploadResume: _editCareerProfile,
             onEnhanceResume: _enhanceResume,
             onWriteCoverLetter: _writeCoverLetter,
+            onInterviewPrep: _pickInterviewPrep,
             onOpenDocument: _openDocument,
           ),
         ],

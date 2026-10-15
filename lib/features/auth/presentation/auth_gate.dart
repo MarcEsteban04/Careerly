@@ -37,6 +37,10 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   _GateStatus _status = _GateStatus.loading;
   DateTime? _backgroundedAt;
 
+  /// Set by a password sign-in, so the app offers biometric unlock once
+  /// it's showing (Get started offers it itself on first run).
+  bool _justSignedIn = false;
+
   @override
   void initState() {
     super.initState();
@@ -73,8 +77,10 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       // Fresh password sign-in (or sign-up): close any auth routes on top
       // (e.g. the sign-up screen) and go straight in.
       Navigator.of(context).popUntil((route) => route.isFirst);
-      setState(() => _status = _GateStatus.unlocked);
-      WidgetsBinding.instance.addPostFrameCallback((_) => _offerAppLock());
+      setState(() {
+        _status = _GateStatus.unlocked;
+        _justSignedIn = true;
+      });
     }
   }
 
@@ -143,6 +149,12 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
           key: const ValueKey('app'),
           authRepository: widget.authRepository,
           appLock: widget.appLock,
+          afterSignIn: _justSignedIn
+              ? () {
+                  _justSignedIn = false;
+                  _offerAppLock();
+                }
+              : null,
         ),
     };
 

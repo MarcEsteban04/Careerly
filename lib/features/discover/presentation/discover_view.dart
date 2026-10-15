@@ -384,7 +384,32 @@ class _SavedSearches extends StatelessWidget {
               child: GestureDetector(
                 onLongPress: () => controller.deleteSavedSearch(search),
                 child: ActionChip(
-                  label: Text(search.label),
+                  label: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(search.label),
+                      if (controller.freshCount(search) > 0) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '${controller.freshCount(search)} new',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colorScheme.onPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                   onPressed: () {
                     searchController.text = search.keywords;
                     controller.runSavedSearch(search);
