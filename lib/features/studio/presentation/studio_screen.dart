@@ -38,7 +38,7 @@ class StudioScreen extends StatelessWidget {
             items?.where((d) => d.kind == DocumentKind.resume).toList() ?? [];
         final letters =
             items?.where((d) => d.kind == DocumentKind.coverLetter).toList() ??
-                [];
+            [];
         final resume = studio.profile().resume;
 
         return TabPage(
@@ -52,26 +52,29 @@ class StudioScreen extends StatelessWidget {
               onUpload: onUploadResume,
             ),
             const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Expanded(
-                  child: _ToolCard(
-                    icon: Icons.auto_fix_high_rounded,
-                    title: 'Enhance resume',
-                    subtitle: 'Stronger bullets for a target role',
-                    onTap: onEnhanceResume,
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _ToolCard(
+                      icon: Icons.auto_fix_high_rounded,
+                      title: 'Enhance resume',
+                      subtitle: 'Stronger bullets for a target role',
+                      onTap: onEnhanceResume,
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: _ToolCard(
-                    icon: Icons.edit_note_rounded,
-                    title: 'Cover letter',
-                    subtitle: 'Tailored to a specific job',
-                    onTap: onWriteCoverLetter,
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: _ToolCard(
+                      icon: Icons.edit_note_rounded,
+                      title: 'Cover letter',
+                      subtitle: 'Tailored to a specific job',
+                      onTap: onWriteCoverLetter,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: AppSpacing.xl),
             if (items == null && studio.error == null)
@@ -97,7 +100,8 @@ class StudioScreen extends StatelessWidget {
                 child: const EmptyState(
                   icon: Icons.folder_open_rounded,
                   title: 'Nothing saved yet',
-                  message: 'Enhanced resumes and cover letters you save show '
+                  message:
+                      'Enhanced resumes and cover letters you save show '
                       'up here, ready to share as PDF.',
                 ),
               )
@@ -176,14 +180,15 @@ class _ResumeCard extends StatelessWidget {
                     Text(
                       needsUpload
                           ? resume == null
-                              ? 'Upload a PDF to unlock AI writing.'
-                              : 'Re-upload it so AI can work from the full text.'
+                                ? 'Upload a PDF to unlock AI writing.'
+                                : 'Re-upload it so AI can work from the full text.'
                           : resume.headline ??
-                              'Uploaded ${DateFormat('MMM d').format(resume.uploadedAt)}',
+                                'Uploaded ${DateFormat('MMM d').format(resume.uploadedAt)}',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: colorScheme.onSurfaceVariant),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -193,7 +198,9 @@ class _ResumeCard extends StatelessWidget {
                 onPressed: onUpload,
                 style: FilledButton.styleFrom(
                   minimumSize: const Size(0, 40),
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                  ),
                 ),
                 child: Text(needsUpload ? 'Upload' : 'Replace'),
               ),
@@ -240,9 +247,7 @@ class _ToolCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              Expanded(
-                child: Text(title, style: theme.textTheme.titleMedium),
-              ),
+              Expanded(child: Text(title, style: theme.textTheme.titleMedium)),
               Icon(
                 Icons.auto_awesome_rounded,
                 size: 16,
@@ -253,8 +258,9 @@ class _ToolCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             subtitle,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: colorScheme.onSurfaceVariant),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -303,8 +309,9 @@ class _DocumentList extends StatelessWidget {
               ),
               subtitle: Text(
                 DateFormat('MMM d, y · h:mm a').format(doc.createdAt),
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: colorScheme.onSurfaceVariant),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
               trailing: const Icon(Icons.chevron_right_rounded),
             ),
