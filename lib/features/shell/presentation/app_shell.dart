@@ -38,7 +38,7 @@ import '../../profile/data/career_profile_repository.dart';
 import '../../profile/presentation/career_profile_sheet.dart';
 import '../../resume/data/resume_insights.dart';
 import '../../resume/data/resume_reader.dart';
-import '../../settings/presentation/account_sheet.dart';
+import '../../settings/presentation/profile_screen.dart';
 import '../../studio/data/career_writer.dart';
 import '../../studio/data/studio_controller.dart';
 import '../../studio/presentation/cover_letter_screen.dart';
@@ -478,6 +478,19 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     return read.insights.withTextDocument(id);
   }
 
+  void _openProfile() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProfileScreen(
+          authRepository: widget.authRepository,
+          appLock: widget.appLock,
+          discover: _discover,
+          onEditCareerProfile: _editCareerProfile,
+        ),
+      ),
+    );
+  }
+
   Future<void> _editCareerProfile() async {
     final saved = await showCareerProfileSheet(
       context,
@@ -639,11 +652,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             name: name,
             initial:
                 (name ?? email).characters.firstOrNull?.toUpperCase() ?? '?',
-            onAccountTap: () => showAccountSheet(
-              context,
-              authRepository: widget.authRepository,
-              appLock: widget.appLock,
-            ),
+            onAccountTap: _openProfile,
             onSearchTap: _openJobsSearch,
             onOpenApplication: _openApplication,
             onSeeAllApplications: _openJobs,

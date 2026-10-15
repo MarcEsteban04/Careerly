@@ -189,6 +189,12 @@ class FakeGoalsRepository implements GoalsRepository {
 
 class FakeAppLock implements AppLockRepository {
   @override
+  Future<bool> canUseBiometrics() async => true;
+
+  @override
+  Future<bool> isEnabled() async => false;
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 

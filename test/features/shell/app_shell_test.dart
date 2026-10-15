@@ -504,6 +504,50 @@ void main() {
     });
   });
 
+  group('profile', () {
+    Future<void> openProfile(WidgetTester tester, CareerProfile profile) async {
+      await pumpShell(
+        tester,
+        applications: FakeApplicationsRepository(),
+        discover: fakeDiscover(profile: profile),
+      );
+      await tester.tap(find.byType(CircleAvatar).first);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('prompts to set up the career profile', (tester) async {
+      await openProfile(tester, const CareerProfile());
+
+      expect(find.text('Profile'), findsOneWidget);
+      expect(find.text('me@careerly.app'), findsOneWidget);
+      expect(find.text('No resume yet'), findsOneWidget);
+      expect(find.text('Biometric unlock'), findsOneWidget);
+
+      await tester.tap(find.text('Set up your career profile'));
+      await tester.pumpAndSettle();
+      expect(find.text('Career profile'), findsWidgets);
+    });
+
+    testWidgets('summarizes a filled-in profile', (tester) async {
+      await openProfile(
+        tester,
+        const CareerProfile(
+          targetRoles: ['UI Designer'],
+          skills: ['Figma'],
+          yearsOfExperience: 3,
+          location: 'Manila',
+          workSetup: WorkSetup.remote,
+        ),
+      );
+
+      expect(find.text('UI Designer'), findsOneWidget);
+      expect(find.text('Figma'), findsOneWidget);
+      expect(find.text('3 years'), findsOneWidget);
+      expect(find.text('Manila'), findsOneWidget);
+      expect(find.text('Edit'), findsOneWidget);
+    });
+  });
+
   test('workspace numbers', () {
     final now = DateTime(2026, 10, 16, 12); // Friday
     final sample = sampleDashboardData(now);
