@@ -7,6 +7,13 @@ import 'package:careerly/features/agenda/data/agenda_repository.dart';
 import 'package:careerly/features/applications/data/applications_repository.dart';
 import 'package:careerly/features/applications/data/job_application.dart';
 import 'package:careerly/features/auth/data/app_lock_repository.dart';
+import 'package:careerly/features/discover/data/discover_controller.dart';
+import 'package:careerly/features/discover/data/job_listing.dart';
+import 'package:careerly/features/discover/data/job_search_query.dart';
+import 'package:careerly/features/discover/data/jooble_client.dart';
+import 'package:careerly/features/discover/data/jsearch_client.dart';
+import 'package:careerly/features/profile/data/career_profile.dart';
+import 'package:careerly/features/profile/data/career_profile_repository.dart';
 import 'package:careerly/features/shell/presentation/app_shell.dart';
 import 'package:careerly/features/goals/data/goal.dart';
 import 'package:careerly/features/goals/data/goals_repository.dart';
@@ -42,6 +49,31 @@ class FakeApplicationsRepository implements ApplicationsRepository {
       );
 
   final deleted = <String>[];
+
+  @override
+  Future<JobApplication> create({
+    required String company,
+    required String role,
+    required ApplicationStatus status,
+    String? location,
+    String? jobUrl,
+    String? salary,
+    DateTime? appliedOn,
+  }) async {
+    final created = JobApplication(
+      id: 'new-${items.length}',
+      company: company,
+      role: role,
+      status: status,
+      location: location,
+      jobUrl: jobUrl,
+      salary: salary,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    items = [created, ...items];
+    return created;
+  }
 
   @override
   Future<void> delete(String id) async => deleted.add(id);
@@ -186,6 +218,7 @@ Future<void> pumpShell(
   required FakeApplicationsRepository applications,
   FakeAgendaRepository? agenda,
   FakeGoalsRepository? goals,
+  DiscoverController? discover,
   ThemeData? theme,
 }) async {
   tester.platformDispatcher.accessibilityFeaturesTestValue =
@@ -205,8 +238,68 @@ Future<void> pumpShell(
         applications: applications,
         agenda: agenda ?? FakeAgendaRepository(),
         goals: goals ?? FakeGoalsRepository(),
+        discover: discover ?? fakeDiscover(),
       ),
     ),
   );
   await tester.pumpAndSettle();
 }
+
+class FakeJSearchClient extends JSearchClient {
+  FakeJSearchClient([this.listings = const []]) : super(apiKey: 'test');
+
+  final List<JobListing> listings;
+  final queries = <JobSearchQuery>[];
+
+  @override
+  Future<List<JobListing>> search(JobSearchQuery query) async {
+    queries.add(query);
+    return listings;
+  }
+}
+
+class FakeCareerProfileRepository implements CareerProfileRepository {
+  FakeCareerProfileRepository([this.profile = const CareerProfile()]);
+
+  CareerProfile profile;
+
+  @override
+  CareerProfile read() => profile;
+
+  @override
+  Future<CareerProfile> save(CareerProfile profile) async =>
+      this.profile = profile;
+}
+
+DiscoverController fakeDiscover({
+  List<JobListing> listings = const [],
+  CareerProfile profile = const CareerProfile(),
+}) =>
+    DiscoverController(
+      jsearch: FakeJSearchClient(listings),
+      jooble: JoobleClient(apiKey: ''),
+      profiles: FakeCareerProfileRepository(profile),
+    );
+
+const sampleListings = [
+  JobListing(
+    id: 'j1',
+    title: 'UI/UX Designer',
+    company: 'Acme PH',
+    source: 'LinkedIn',
+    applyUrl: 'https://example.com/acme',
+    location: 'Makati, Metro Manila',
+    employmentType: 'Full-time',
+    salary: '₱50K/month',
+    description: 'We need a designer fluent in Figma and user research.',
+  ),
+  JobListing(
+    id: 'j2',
+    title: 'Backend Engineer',
+    company: 'Globex',
+    source: 'Indeed',
+    applyUrl: 'https://example.com/globex',
+    isRemote: true,
+    description: 'Go and Postgres services.',
+  ),
+];

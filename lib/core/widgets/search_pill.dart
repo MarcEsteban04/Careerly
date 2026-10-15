@@ -11,6 +11,7 @@ class SearchPill extends StatelessWidget {
     this.controller,
     this.focusNode,
     this.onChanged,
+    this.onSubmitted,
     this.onTap,
   });
 
@@ -18,6 +19,7 @@ class SearchPill extends StatelessWidget {
   final TextEditingController? controller;
   final FocusNode? focusNode;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
   final VoidCallback? onTap;
 
   @override
@@ -35,6 +37,7 @@ class SearchPill extends StatelessWidget {
       readOnly: controller == null,
       onTap: onTap,
       onChanged: onChanged,
+      onSubmitted: onSubmitted,
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
         hintText: hint,

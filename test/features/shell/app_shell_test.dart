@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:careerly/core/widgets/pill_chip.dart';
 import 'package:careerly/features/applications/data/job_application.dart';
+import 'package:careerly/features/profile/data/career_profile.dart';
 import 'package:careerly/features/shell/data/workspace_data.dart';
 
 import 'shell_test_utils.dart';
@@ -182,6 +183,70 @@ void main() {
       expect(fakes.applications.deleted, ['a3']);
       expect(find.text('Application'), findsNothing);
       expect(find.text('Deleted Design Engineer'), findsOneWidget);
+    });
+  });
+
+  group('discover', () {
+    Future<FakeApplicationsRepository> pumpDiscover(
+      WidgetTester tester, {
+      CareerProfile profile = const CareerProfile(
+        targetRoles: ['UI Designer'],
+        skills: ['Figma', 'User research'],
+      ),
+    }) async {
+      final applications = FakeApplicationsRepository();
+      await pumpShell(
+        tester,
+        applications: applications,
+        discover: fakeDiscover(listings: sampleListings, profile: profile),
+      );
+      await openTab(tester, 'Jobs');
+      await tester.tap(find.text('Discover'));
+      await tester.pumpAndSettle();
+      return applications;
+    }
+
+    testWidgets('searches the profile role and ranks by match',
+        (tester) async {
+      await pumpDiscover(tester);
+
+      expect(find.text('Find jobs that fit you'), findsOneWidget);
+      await tester.tap(find.text('Search "UI Designer"'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('2 jobs for "UI Designer"'), findsOneWidget);
+      final designer = tester.getTopLeft(find.text('UI/UX Designer')).dy;
+      final backend = tester.getTopLeft(find.text('Backend Engineer')).dy;
+      expect(designer, lessThan(backend));
+      expect(find.textContaining('% MATCH'), findsNWidgets(2));
+    });
+
+    testWidgets('asks for a profile when there is none', (tester) async {
+      await pumpDiscover(tester, profile: const CareerProfile());
+
+      expect(find.text('Set up your career profile'), findsOneWidget);
+      await tester.tap(find.text('Set up profile'));
+      await tester.pumpAndSettle();
+      expect(find.text('Career profile'), findsOneWidget);
+    });
+
+    testWidgets('saves a job to the tracker from its detail page',
+        (tester) async {
+      final applications = await pumpDiscover(tester);
+      await tester.tap(find.text('Search "UI Designer"'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('UI/UX Designer'));
+      await tester.pumpAndSettle();
+      expect(find.text('Job Detail'), findsOneWidget);
+      expect(find.text('Apply this job'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Save to tracker'));
+      await tester.pumpAndSettle();
+
+      expect(applications.items.single.role, 'UI/UX Designer');
+      expect(applications.items.single.status, ApplicationStatus.saved);
+      expect(find.byTooltip('Saved to tracker'), findsOneWidget);
     });
   });
 

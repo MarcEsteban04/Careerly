@@ -5,26 +5,46 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/pill_chip.dart';
 import '../../../core/widgets/search_pill.dart';
+import '../../../core/widgets/segmented_tabs.dart';
 import '../../../core/widgets/tab_page.dart';
+import '../../discover/data/discover_controller.dart';
+import '../../discover/presentation/discover_view.dart';
 import '../../shell/data/workspace_controller.dart';
 import '../../shell/presentation/widgets/workspace_view.dart';
 import '../data/job_application.dart';
 import 'widgets/job_card.dart';
 
-/// Jobs tab: every application, searchable and filterable by stage.
+enum JobsSection { tracked, discover }
+
+/// Jobs tab. "Tracked" lists every application, searchable and filterable by
+/// stage; "Discover" searches job boards for openings that fit the profile.
 class ApplicationsScreen extends StatelessWidget {
   const ApplicationsScreen({
     super.key,
     required this.controller,
+    required this.section,
+    required this.onSectionChanged,
     required this.filter,
     required this.onFilterChanged,
     required this.searchController,
     required this.searchFocusNode,
     required this.onOpenApplication,
     required this.onAdd,
+    required this.discover,
+    required this.discoverSearchController,
+    required this.isListingSaved,
+    required this.onOpenListing,
+    required this.onEditProfile,
   });
 
   final WorkspaceController controller;
+  final JobsSection section;
+  final ValueChanged<JobsSection> onSectionChanged;
+  final DiscoverController discover;
+  final TextEditingController discoverSearchController;
+  final bool Function(RankedListing ranked) isListingSaved;
+  final ValueChanged<RankedListing> onOpenListing;
+  final VoidCallback onEditProfile;
 
   /// Null shows every stage.
   final ApplicationStatus? filter;
@@ -45,7 +65,11 @@ class ApplicationsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([controller, searchController]),
+      listenable: Listenable.merge([
+        controller,
+        searchController,
+        discover,
+      ]),
       builder: (context, _) {
         final data = controller.data;
         final applications = data?.applications ?? const <JobApplication>[];
@@ -54,9 +78,45 @@ class ApplicationsScreen extends StatelessWidget {
             .where((a) => filter == null || a.status == filter)
             .where((a) => _matches(a, query))
             .toList();
+        final discovering = section == JobsSection.discover;
+
+        final sectionTabs = SegmentedTabs(
+          labels: const ['Tracked', 'Discover'],
+          selectedIndex: section.index,
+          onSelected: (i) => onSectionChanged(JobsSection.values[i]),
+        );
+
+        if (discovering) {
+          return TabPage(
+            title: 'Jobs',
+            subtitle: 'Openings matched to your profile',
+            onRefresh: discover.results == null ? () async {} : discover.refresh,
+            header: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                sectionTabs,
+                const SizedBox(height: AppSpacing.md),
+                DiscoverHeader(
+                  controller: discover,
+                  searchController: discoverSearchController,
+                  onEditProfile: onEditProfile,
+                ),
+              ],
+            ),
+            children: [
+              DiscoverResults(
+                controller: discover,
+                searchController: discoverSearchController,
+                isSaved: isListingSaved,
+                onOpenListing: onOpenListing,
+                onEditProfile: onEditProfile,
+              ),
+            ],
+          );
+        }
 
         return TabPage(
-          title: 'Applications',
+          title: 'Jobs',
           subtitle: data == null
               ? null
               : applications.length == 1
@@ -66,6 +126,8 @@ class ApplicationsScreen extends StatelessWidget {
           header: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              sectionTabs,
+              const SizedBox(height: AppSpacing.md),
               SearchPill(
                 hint: 'Search roles or companies',
                 controller: searchController,

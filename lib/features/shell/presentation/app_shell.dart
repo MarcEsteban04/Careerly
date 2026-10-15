@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/config/env.dart';
+import '../../../core/utils/error_message.dart';
 import '../../agenda/data/agenda_repository.dart';
 import '../../agenda/presentation/agenda_event_form_sheet.dart';
 import '../../agenda/presentation/agenda_screen.dart';
@@ -11,10 +13,16 @@ import '../../applications/presentation/applications_screen.dart';
 import '../../auth/data/app_lock_repository.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../dashboard/presentation/dashboard_screen.dart';
+import '../../discover/data/discover_controller.dart';
+import '../../discover/data/jooble_client.dart';
+import '../../discover/data/jsearch_client.dart';
+import '../../discover/presentation/job_listing_screen.dart';
 import '../../goals/data/goal.dart';
 import '../../goals/data/goals_repository.dart';
 import '../../goals/presentation/goal_form_sheet.dart';
 import '../../goals/presentation/goals_screen.dart';
+import '../../profile/data/career_profile_repository.dart';
+import '../../profile/presentation/career_profile_sheet.dart';
 import '../../settings/presentation/account_sheet.dart';
 import '../data/workspace_controller.dart';
 import 'widgets/floating_nav_bar.dart';
@@ -31,15 +39,23 @@ class AppShell extends StatefulWidget {
     ApplicationsRepository? applications,
     AgendaRepository? agenda,
     GoalsRepository? goals,
+    DiscoverController? discover,
   })  : applications = applications ?? ApplicationsRepository(),
         agenda = agenda ?? AgendaRepository(),
-        goals = goals ?? GoalsRepository();
+        goals = goals ?? GoalsRepository(),
+        discover = discover ??
+            DiscoverController(
+              jsearch: JSearchClient(apiKey: Env.jsearchApiKey),
+              jooble: JoobleClient(apiKey: Env.joobleApiKey),
+              profiles: CareerProfileRepository(),
+            );
 
   final AuthRepository authRepository;
   final AppLockRepository appLock;
   final ApplicationsRepository applications;
   final AgendaRepository agenda;
   final GoalsRepository goals;
+  final DiscoverController discover;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -79,12 +95,16 @@ class _AppShellState extends State<AppShell> {
   ApplicationStatus? _jobsFilter;
   final _jobsSearch = TextEditingController();
   final _jobsSearchFocus = FocusNode();
+  final _discoverSearch = TextEditingController();
+  JobsSection _jobsSection = JobsSection.tracked;
 
   @override
   void dispose() {
     _workspace.dispose();
     _jobsSearch.dispose();
     _jobsSearchFocus.dispose();
+    _discoverSearch.dispose();
+    widget.discover.dispose();
     super.dispose();
   }
 
@@ -101,6 +121,53 @@ class _AppShellState extends State<AppShell> {
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _jobsSearchFocus.requestFocus(),
     );
+  }
+
+  bool _isListingSaved(RankedListing ranked) =>
+      _workspace.data?.applications
+          .any((a) => a.jobUrl == ranked.listing.applyUrl) ??
+      false;
+
+  /// Adds a found job to the tracker as "Saved".
+  Future<bool> _saveListing(RankedListing ranked) async {
+    final job = ranked.listing;
+    try {
+      await widget.applications.create(
+        company: job.company,
+        role: job.title,
+        status: ApplicationStatus.saved,
+        location: job.isRemote && job.location == null ? 'Remote' : job.location,
+        jobUrl: job.applyUrl,
+        salary: job.salary,
+      );
+      await _workspace.load();
+      _showMessage('Saved to your tracker');
+      return true;
+    } catch (error) {
+      _showMessage(friendlyErrorMessage(error));
+      return false;
+    }
+  }
+
+  void _openListing(RankedListing ranked) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => JobListingScreen(
+          ranked: ranked,
+          isSaved: _isListingSaved(ranked),
+          onSave: () => _saveListing(ranked),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editCareerProfile() async {
+    final saved = await showCareerProfileSheet(
+      context,
+      initial: widget.discover.profile,
+      onSave: widget.discover.saveProfile,
+    );
+    if (saved) _showMessage('Profile saved. Matches updated.');
   }
 
   void _openApplication(String id) {
@@ -231,6 +298,14 @@ class _AppShellState extends State<AppShell> {
             searchFocusNode: _jobsSearchFocus,
             onOpenApplication: _openApplication,
             onAdd: _addApplication,
+            section: _jobsSection,
+            onSectionChanged: (section) =>
+                setState(() => _jobsSection = section),
+            discover: widget.discover,
+            discoverSearchController: _discoverSearch,
+            isListingSaved: _isListingSaved,
+            onOpenListing: _openListing,
+            onEditProfile: _editCareerProfile,
           ),
           AgendaScreen(
             controller: _workspace,
