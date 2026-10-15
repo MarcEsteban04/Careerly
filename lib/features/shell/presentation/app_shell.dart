@@ -155,6 +155,15 @@ class _AppShellState extends State<AppShell> {
 
   void _select(_Tab tab) => setState(() => _tab = tab);
 
+  /// Open agenda items in the next 24 hours, shown as a badge on Agenda.
+  int get _dueSoonCount {
+    final until = DateTime.now().add(const Duration(days: 1));
+    return _workspace.data?.upcoming
+            .where((e) => !e.isDone && e.startsAt.isBefore(until))
+            .length ??
+        0;
+  }
+
   void _openJobs(ApplicationStatus? filter) => setState(() {
         _jobsFilter = filter;
         _tab = _Tab.jobs;
@@ -452,12 +461,16 @@ class _AppShellState extends State<AppShell> {
           ),
         ],
       ),
-      bottomNavigationBar: FloatingNavBar(
-        items: _navItems,
-        selectedIndex: _tab.index,
-        onSelected: (index) => _select(_Tab.values[index]),
-        onAdd: _onAdd,
-        addTooltip: _addTooltip,
+      bottomNavigationBar: ListenableBuilder(
+        listenable: _workspace,
+        builder: (context, _) => FloatingNavBar(
+          items: _navItems,
+          selectedIndex: _tab.index,
+          onSelected: (index) => _select(_Tab.values[index]),
+          onAdd: _onAdd,
+          addTooltip: _addTooltip,
+          badges: {_Tab.agenda.index: _dueSoonCount},
+        ),
       ),
     );
   }
