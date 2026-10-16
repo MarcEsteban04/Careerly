@@ -29,8 +29,12 @@ class InterviewPrepScreen extends StatefulWidget {
     required this.profile,
     required this.resumeText,
     required this.onUploadResume,
+    required this.onMockInterview,
     this.interviewAt,
   });
+
+  /// Starts a practice round with the kit's questions.
+  final ValueChanged<InterviewPrep> onMockInterview;
 
   final JobApplication application;
   final InterviewCoach coach;
@@ -170,7 +174,11 @@ class _InterviewPrepScreenState extends State<InterviewPrepScreen> {
             padding: EdgeInsets.all(AppSpacing.xl),
             child: Center(child: CircularProgressIndicator()),
           ),
-        if (prep != null && !_isWorking) _PrepContent(prep: prep),
+        if (prep != null && !_isWorking) ...[
+          const SizedBox(height: AppSpacing.sm),
+          _MockInterviewCard(onStart: () => widget.onMockInterview(prep)),
+          _PrepContent(prep: prep),
+        ],
       ],
     );
   }
@@ -237,6 +245,59 @@ class _JobCard extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MockInterviewCard extends StatelessWidget {
+  const _MockInterviewCard({required this.onStart});
+
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return AppCard(
+      onTap: onStart,
+      color: colorScheme.primary,
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: colorScheme.onPrimary.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.mic_rounded, color: colorScheme.onPrimary),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Practice a mock interview',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: colorScheme.onPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Answer 5 questions out loud and get scored feedback.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onPrimary.withValues(alpha: 0.85),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.arrow_forward_rounded, color: colorScheme.onPrimary),
         ],
       ),
     );

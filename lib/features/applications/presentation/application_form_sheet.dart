@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/error_message.dart';
 import '../../../core/widgets/choice_chip_group.dart';
+import '../../../core/widgets/form_banner.dart';
 import '../../../core/widgets/form_sheet.dart';
 import '../../../core/widgets/labeled_field.dart';
 import '../../../core/widgets/picker_field.dart';
@@ -11,24 +12,61 @@ import '../data/applications_repository.dart';
 import '../data/job_application.dart';
 import 'application_status_style.dart';
 
-/// Opens the application form: new, or editing [existing]. Resolves to the
-/// saved application, or null if dismissed.
+/// Details to start a new application with, e.g. read from a shared job
+/// post.
+class ApplicationPrefill {
+  const ApplicationPrefill({
+    this.company,
+    this.role,
+    this.location,
+    this.salary,
+    this.jobUrl,
+    this.source,
+    this.jobDescription,
+  });
+
+  final String? company;
+  final String? role;
+  final String? location;
+  final String? salary;
+  final String? jobUrl;
+  final String? source;
+  final String? jobDescription;
+}
+
+/// Opens the application form: new (optionally from [prefill]), or editing
+/// [existing]. [notice] explains a prefill, e.g. that a post couldn't be
+/// read. Resolves to the saved application, or null if dismissed.
 Future<JobApplication?> showApplicationFormSheet(
   BuildContext context, {
   required ApplicationsRepository repository,
   JobApplication? existing,
+  ApplicationPrefill? prefill,
+  String? notice,
 }) {
   return showFormSheet<JobApplication>(
     context,
-    child: _ApplicationForm(repository: repository, existing: existing),
+    child: _ApplicationForm(
+      repository: repository,
+      existing: existing,
+      prefill: prefill,
+      notice: notice,
+    ),
   );
 }
 
 class _ApplicationForm extends StatefulWidget {
-  const _ApplicationForm({required this.repository, this.existing});
+  const _ApplicationForm({
+    required this.repository,
+    this.existing,
+    this.prefill,
+    this.notice,
+  });
 
   final ApplicationsRepository repository;
   final JobApplication? existing;
+  final ApplicationPrefill? prefill;
+  final String? notice;
 
   @override
   State<_ApplicationForm> createState() => _ApplicationFormState();
@@ -36,18 +74,27 @@ class _ApplicationForm extends StatefulWidget {
 
 class _ApplicationFormState extends State<_ApplicationForm> {
   final _formKey = GlobalKey<FormState>();
-  late final _companyController =
-      TextEditingController(text: widget.existing?.company);
-  late final _roleController = TextEditingController(text: widget.existing?.role);
-  late final _salaryController =
-      TextEditingController(text: widget.existing?.salary);
-  late final _locationController =
-      TextEditingController(text: widget.existing?.location);
-  late final _linkController =
-      TextEditingController(text: widget.existing?.jobUrl);
+  late final _companyController = TextEditingController(
+    text: widget.existing?.company ?? widget.prefill?.company,
+  );
+  late final _roleController = TextEditingController(
+    text: widget.existing?.role ?? widget.prefill?.role,
+  );
+  late final _salaryController = TextEditingController(
+    text: widget.existing?.salary ?? widget.prefill?.salary,
+  );
+  late final _locationController = TextEditingController(
+    text: widget.existing?.location ?? widget.prefill?.location,
+  );
+  late final _linkController = TextEditingController(
+    text: widget.existing?.jobUrl ?? widget.prefill?.jobUrl,
+  );
 
-  late ApplicationStatus _status =
-      widget.existing?.status ?? ApplicationStatus.applied;
+  // A job found elsewhere usually hasn't been applied to yet.
+  late ApplicationStatus _status = widget.existing?.status ??
+      (widget.prefill == null
+          ? ApplicationStatus.applied
+          : ApplicationStatus.saved);
   late DateTime _appliedOn = widget.existing?.appliedOn ?? DateTime.now();
 
   bool get _isEditing => widget.existing != null;
@@ -97,6 +144,8 @@ class _ApplicationFormState extends State<_ApplicationForm> {
               salary: optional(_salaryController),
               jobUrl: optional(_linkController),
               appliedOn: appliedOn,
+              source: widget.prefill?.source,
+              jobDescription: widget.prefill?.jobDescription,
             )
           : await widget.repository.updateDetails(
               existing.id,
@@ -128,18 +177,28 @@ class _ApplicationFormState extends State<_ApplicationForm> {
     return Form(
       key: _formKey,
       child: FormSheet(
-        title: 'New application',
-        subtitle: 'Track a role you saved or applied for.',
+        title: _isEditing
+            ? 'Edit details'
+            : widget.prefill == null
+                ? 'New application'
+                : 'Track this job',
+        subtitle: widget.prefill == null
+            ? 'Track a role you saved or applied for.'
+            : 'Check the details, then save it to your tracker.',
         submitLabel: 'Save application',
         isSubmitting: _isSubmitting,
         errorMessage: _errorMessage,
         onSubmit: _submit,
         children: [
+          if (widget.notice != null) ...[
+            FormBanner(message: widget.notice!, tone: FormBannerTone.info),
+            const SizedBox(height: AppSpacing.md),
+          ],
           LabeledField(
             label: 'Company',
             child: TextFormField(
               controller: _companyController,
-              autofocus: !_isEditing,
+              autofocus: !_isEditing && widget.prefill == null,
               textCapitalization: TextCapitalization.words,
               textInputAction: TextInputAction.next,
               decoration: const InputDecoration(
@@ -200,7 +259,7 @@ class _ApplicationFormState extends State<_ApplicationForm> {
               controller: _salaryController,
               textInputAction: TextInputAction.next,
               decoration: const InputDecoration(
-                hintText: r'e.g. $4,000/month',
+                hintText: 'e.g. ₱30,000/month',
                 prefixIcon: Icon(Icons.payments_outlined),
               ),
             ),

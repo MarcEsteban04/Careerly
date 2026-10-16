@@ -34,8 +34,13 @@ class ApplicationDetailScreen extends StatefulWidget {
     required this.onWriteCoverLetter,
     required this.onTailorResume,
     required this.onInterviewPrep,
+    required this.onWriteMessage,
     required this.onApply,
   });
+
+  /// Opens the message writer; [followUp] when a follow-up is due.
+  final void Function(JobApplication application, {bool followUp})
+      onWriteMessage;
 
   final String applicationId;
   final WorkspaceController controller;
@@ -212,6 +217,12 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                 onTap: () => Navigator.of(context).pop('prep'),
               ),
               ListTile(
+                leading: const Icon(Icons.mail_outline_rounded),
+                title: const Text('Write a message'),
+                subtitle: const Text('Follow-up, thank-you or offer reply'),
+                onTap: () => Navigator.of(context).pop('message'),
+              ),
+              ListTile(
                 leading: Icon(
                   Icons.delete_outline_rounded,
                   color: Theme.of(context).colorScheme.error,
@@ -232,6 +243,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     if (action == 'letter') widget.onWriteCoverLetter(application);
     if (action == 'tailor') widget.onTailorResume(application);
     if (action == 'prep') widget.onInterviewPrep(application);
+    if (action == 'message') widget.onWriteMessage(application);
     if (action == 'edit') await _editDetails(application);
     if (action == 'delete') await _confirmDelete(application);
   }
@@ -300,9 +312,24 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                 ),
                 children: [
                   _Header(application: application),
+                  if (_followUpDue(application)) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _ActionCard(
+                      icon: Icons.forward_to_inbox_rounded,
+                      title: 'Time to follow up',
+                      subtitle: 'Careerly can draft a short, friendly email '
+                          'for you.',
+                      onTap: () =>
+                          widget.onWriteMessage(application, followUp: true),
+                    ),
+                  ],
                   if (application.status == ApplicationStatus.interviewing) ...[
                     const SizedBox(height: AppSpacing.md),
-                    _InterviewPrepCard(
+                    _ActionCard(
+                      icon: Icons.record_voice_over_outlined,
+                      title: 'Prepare for your interview',
+                      subtitle: 'Likely questions, answers from your resume, '
+                          'and a mock interview.',
                       onTap: () => widget.onInterviewPrep(application),
                     ),
                   ],
@@ -532,10 +559,29 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
   }
 }
 
-/// Shown while interviewing: a shortcut to the AI interview kit.
-class _InterviewPrepCard extends StatelessWidget {
-  const _InterviewPrepCard({required this.onTap});
+/// Whether the follow-up date has come for an application still waiting.
+bool _followUpDue(JobApplication application) {
+  final due = application.followUpOn;
+  if (due == null) return false;
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  return !due.isAfter(today) &&
+      (application.status == ApplicationStatus.applied ||
+          application.status == ApplicationStatus.interviewing);
+}
 
+/// A highlighted next step, e.g. interview prep or a due follow-up.
+class _ActionCard extends StatelessWidget {
+  const _ActionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
   final VoidCallback onTap;
 
   @override
@@ -555,10 +601,7 @@ class _InterviewPrepCard extends StatelessWidget {
               color: colorScheme.primary,
               borderRadius: BorderRadius.circular(AppRadius.md),
             ),
-            child: Icon(
-              Icons.record_voice_over_outlined,
-              color: colorScheme.onPrimary,
-            ),
+            child: Icon(icon, color: colorScheme.onPrimary),
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -566,14 +609,13 @@ class _InterviewPrepCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Prepare for your interview',
+                  title,
                   style: theme.textTheme.titleSmall
                       ?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Likely questions, answers from your resume, and what to '
-                  'ask them.',
+                  subtitle,
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: colorScheme.onSurfaceVariant),
                 ),

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:careerly/core/widgets/pill_chip.dart';
+import 'package:careerly/core/widgets/user_avatar.dart';
 import 'package:careerly/features/applications/data/job_application.dart';
 import 'package:careerly/core/ai/ai_chain.dart';
 import 'package:careerly/features/agenda/data/agenda_event.dart';
@@ -511,7 +512,7 @@ void main() {
         applications: FakeApplicationsRepository(),
         discover: fakeDiscover(profile: profile),
       );
-      await tester.tap(find.byType(CircleAvatar).first);
+      await tester.tap(find.byType(UserAvatar).first);
       await tester.pumpAndSettle();
     }
 

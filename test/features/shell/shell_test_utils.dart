@@ -31,7 +31,11 @@ import 'package:careerly/features/goals/data/goals_repository.dart';
 import 'package:careerly/features/interview_prep/data/interview_coach.dart';
 import 'package:careerly/features/interview_prep/data/interview_prep.dart';
 import 'package:careerly/features/interview_prep/data/interview_prep_repository.dart';
+import 'package:careerly/features/job_import/data/job_post_reader.dart';
+import 'package:careerly/features/job_import/data/job_share_inbox.dart';
+import 'package:careerly/features/messages/data/message_writer.dart';
 import 'package:careerly/features/notifications/data/notifications.dart';
+import 'package:careerly/features/settings/data/avatar_repository.dart';
 
 import '../auth/auth_test_utils.dart';
 
@@ -129,6 +133,38 @@ class FakeApplicationsRepository implements ApplicationsRepository {
     );
     items = [for (final a in items) a.id == updated.id ? updated : a];
     return updated;
+  }
+
+  final followUps = <String, DateTime?>{};
+  final notes = <String, String>{};
+
+  JobApplication _with(String id, {DateTime? followUpOn, String? notes}) {
+    final a = items.firstWhere((a) => a.id == id);
+    return JobApplication(
+      id: a.id,
+      company: a.company,
+      role: a.role,
+      status: a.status,
+      location: a.location,
+      jobUrl: a.jobUrl,
+      appliedOn: a.appliedOn,
+      notes: notes ?? a.notes,
+      followUpOn: followUpOn ?? a.followUpOn,
+      createdAt: a.createdAt,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<JobApplication> setFollowUp(String id, DateTime? date) async {
+    followUps[id] = date;
+    return _with(id, followUpOn: date);
+  }
+
+  @override
+  Future<JobApplication> updateNotes(String id, String notes) async {
+    this.notes[id] = notes;
+    return _with(id, notes: notes);
   }
 
   @override
@@ -315,6 +351,9 @@ Future<void> pumpShell(
   FakeNotifications? notifications,
   InterviewCoach? interviewCoach,
   FakeInterviewPrepRepository? interviewPreps,
+  FakeJobShareInbox? shareInbox,
+  JobPostReader? jobPostReader,
+  MessageWriter? messageWriter,
 }) async {
   tester.platformDispatcher.accessibilityFeaturesTestValue =
       const FakeAccessibilityFeatures(disableAnimations: true);
@@ -341,10 +380,36 @@ Future<void> pumpShell(
         notifications: notifications ?? FakeNotifications(),
         interviewCoach: interviewCoach,
         interviewPreps: interviewPreps ?? FakeInterviewPrepRepository(),
+        shareInbox: shareInbox ?? FakeJobShareInbox(),
+        avatars: FakeAvatarRepository(),
+        jobPostReader: jobPostReader,
+        messageWriter: messageWriter,
       ),
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class FakeAvatarRepository implements AvatarRepository {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class FakeJobShareInbox implements JobShareInbox {
+  FakeJobShareInbox([this.initial]);
+
+  String? initial;
+  final controller = StreamController<String>.broadcast();
+
+  @override
+  Stream<String> get shares => controller.stream;
+
+  @override
+  Future<String?> takeInitial() async {
+    final text = initial;
+    initial = null;
+    return text;
+  }
 }
 
 class FakeInterviewPrepRepository implements InterviewPrepRepository {

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:careerly/core/ai/ai_chain.dart';
 import 'package:careerly/features/interview_prep/data/interview_coach.dart';
 import 'package:careerly/features/interview_prep/data/interview_prep.dart';
+import 'package:careerly/features/interview_prep/presentation/mock_interview_screen.dart';
 import 'package:careerly/features/profile/data/career_profile.dart';
 import 'package:careerly/features/studio/data/career_writer.dart';
 
@@ -64,5 +65,51 @@ void main() {
       () => coach.prepare(job: job, profile: const CareerProfile()),
       throwsFormatException,
     );
+  });
+
+  test('scores a practice answer with a stronger version', () async {
+    final ai = FakeAiProvider(
+      'Gemini',
+      reply: '{"score": 12, "verdict": "Clear and specific.", '
+          '"strengths": ["Concrete example"], "improvements": ["Add a result"], '
+          '"better_answer": "When our onboarding confused users, I..."}',
+    );
+    final coach = InterviewCoach(AiChain([ai]));
+
+    final feedback = await coach.reviewAnswer(
+      job: job,
+      question: const InterviewQuestion(
+        category: QuestionCategory.behavioral,
+        question: 'Tell me about a time you handled feedback.',
+        answer: '',
+      ),
+      answer: 'I redesigned onboarding after testing it with users.',
+      resumeText: 'Designer at Globex',
+    );
+
+    // Out-of-range scores are clamped.
+    expect(feedback.score, 10);
+    expect(feedback.strengths, ['Concrete example']);
+    expect(feedback.betterAnswer, startsWith('When our onboarding'));
+    expect(ai.requests.single.prompt, contains('redesigned onboarding'));
+  });
+
+  test('practice covers each kind of question first', () {
+    InterviewQuestion q(String text, QuestionCategory category) =>
+        InterviewQuestion(category: category, question: text, answer: '');
+    final all = [
+      q('r1', QuestionCategory.role),
+      q('r2', QuestionCategory.role),
+      q('r3', QuestionCategory.role),
+      q('r4', QuestionCategory.role),
+      q('b1', QuestionCategory.behavioral),
+      q('b2', QuestionCategory.behavioral),
+      q('c1', QuestionCategory.company),
+      q('s1', QuestionCategory.situational),
+    ];
+
+    final picked = MockInterviewScreen.pickQuestions(all);
+
+    expect(picked.map((x) => x.question), ['r1', 'r2', 'b1', 'c1', 's1']);
   });
 }

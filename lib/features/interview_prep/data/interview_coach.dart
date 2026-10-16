@@ -68,6 +68,52 @@ Return JSON:
     return prep;
   }
 
+  /// Scores one practice answer and suggests how to make it stronger.
+  Future<AnswerFeedback> reviewAnswer({
+    required JobContext job,
+    required InterviewQuestion question,
+    required String answer,
+    String? resumeText,
+  }) async {
+    final resume = resumeText?.trim() ?? '';
+    final reply = await ai.complete(
+      AiRequest(
+        json: true,
+        system: 'You are a warm but honest interview coach. You score '
+            'answers the way a hiring manager would and give specific, '
+            'actionable feedback. Suggested answers use only the '
+            "candidate's real experience. Reply with JSON only.",
+        prompt: '''
+Mock interview for ${job.label}.
+Question (${question.category.label.toLowerCase()}): ${question.question}
+${question.why == null ? '' : 'What the interviewer wants to learn: ${question.why}\n'}
+Candidate's answer:
+"""
+${answer.trim()}
+"""
+${resume.isEmpty ? '' : '\nRESUME (for the improved answer)\n${resume.length > 6000 ? resume.substring(0, 6000) : resume}\n'}
+Score 1-10 (7+ means it would impress). Be specific to what they said; quote short phrases when helpful. If the answer is very short or off-topic, say so kindly.
+
+Return JSON: {"score": <1-10>, "verdict": "<one sentence overall>", "strengths": ["<up to 3>"], "improvements": ["<up to 3, concrete>"], "better_answer": "<a stronger version in first person, 80-150 words, using STAR for behavioral questions>"}''',
+      ),
+    );
+
+    final json = extractJson(reply.text);
+    if (json is! Map<String, dynamic> || json['score'] is! num) {
+      throw const FormatException('AI did not return feedback');
+    }
+    List<String> strings(Object? value) => value is List
+        ? value.whereType<String>().where((s) => s.trim().isNotEmpty).take(3).toList()
+        : const [];
+    return AnswerFeedback(
+      score: (json['score'] as num).round().clamp(1, 10),
+      verdict: '${json['verdict'] ?? ''}'.trim(),
+      strengths: strings(json['strengths']),
+      improvements: strings(json['improvements']),
+      betterAnswer: '${json['better_answer'] ?? ''}'.trim(),
+    );
+  }
+
   static String _profile(CareerProfile p) => [
         if (p.effectiveRoles.isNotEmpty)
           'Wants roles: ${p.effectiveRoles.join(', ')}',

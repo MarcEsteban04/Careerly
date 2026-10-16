@@ -2,16 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 
-enum QuickAddAction { application, agendaEvent, goal }
+enum QuickAddAction { jobLink, application, agendaEvent, goal }
 
 /// "What do you want to add?" menu behind the dashboard's Add button.
 Future<QuickAddAction?> showQuickAddSheet(BuildContext context) {
   return showModalBottomSheet<QuickAddAction>(
     context: context,
     showDragHandle: true,
+    // Size to the options rather than the default 9/16 of the screen.
+    isScrollControlled: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
     builder: (context) => SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.md,
           0,
@@ -22,10 +24,16 @@ Future<QuickAddAction?> showQuickAddSheet(BuildContext context) {
           mainAxisSize: MainAxisSize.min,
           children: const [
             _Option(
+              action: QuickAddAction.jobLink,
+              icon: Icons.link_rounded,
+              title: 'Job from a link',
+              subtitle: 'Paste a LinkedIn, JobStreet or Indeed link',
+            ),
+            _Option(
               action: QuickAddAction.application,
               icon: Icons.work_outline_rounded,
               title: 'Application',
-              subtitle: 'A role you saved or applied for',
+              subtitle: 'Type in a role you saved or applied for',
             ),
             _Option(
               action: QuickAddAction.agendaEvent,

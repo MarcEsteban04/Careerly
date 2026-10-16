@@ -12,7 +12,9 @@ import '../../../core/widgets/search_pill.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/staggered_reveal.dart';
 import '../../../core/widgets/tab_page.dart';
+import '../../../core/widgets/user_avatar.dart';
 import '../../applications/data/job_application.dart';
+import '../../applications/data/stale_applications.dart';
 import '../../applications/presentation/widgets/job_card.dart';
 import '../../shell/data/workspace_controller.dart';
 import '../../shell/data/workspace_data.dart';
@@ -36,10 +38,18 @@ class DashboardScreen extends StatefulWidget {
     required this.onAddAgendaEvent,
     required this.onEventDone,
     required this.onNotificationsTap,
+    required this.onReviewQuiet,
     this.newJobAlerts = 0,
+    this.avatarUrl,
   });
 
+  /// Opens the review of applications that went quiet.
+  final VoidCallback onReviewQuiet;
+
   final WorkspaceController controller;
+
+  /// Profile photo; the initial shows when there's none.
+  final String? avatarUrl;
 
   /// Opens the notification center (the bell).
   final VoidCallback onNotificationsTap;
@@ -152,16 +162,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: InkResponse(
                     onTap: widget.onAccountTap,
                     radius: 28,
-                    child: CircleAvatar(
-                      radius: 24,
-                      backgroundColor: colorScheme.primary,
-                      child: Text(
-                        widget.initial,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: colorScheme.onPrimary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                    child: UserAvatar(
+                      initial: widget.initial,
+                      photoUrl: widget.avatarUrl,
                     ),
                   ),
                 ),
@@ -240,6 +243,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildSections(BuildContext context, WorkspaceData data) {
     final nextEvent = data.nextEvent;
+    final quiet = StaleApplications.find(data.applications);
     final category = _category;
     final visible = category == null
         ? data.applications
@@ -281,6 +285,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
         ),
+        if (quiet.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.md),
+          section(_QuietCard(count: quiet.length, onTap: widget.onReviewQuiet)),
+        ],
         const SizedBox(height: AppSpacing.lg),
         section(const SectionHeader(title: 'Category')),
         section(
@@ -358,6 +366,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
         ),
       ],
+    );
+  }
+}
+
+/// "N applications have gone quiet": opens the review sheet.
+class _QuietCard extends StatelessWidget {
+  const _QuietCard({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return AppCard(
+      onTap: onTap,
+      color: colorScheme.tertiaryContainer.withValues(alpha: 0.35),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: Icon(
+              Icons.hourglass_bottom_rounded,
+              color: colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  count == 1
+                      ? '1 application has gone quiet'
+                      : '$count applications have gone quiet',
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Follow up, wait a bit longer, or close them out.',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right_rounded, color: colorScheme.onSurfaceVariant),
+        ],
+      ),
     );
   }
 }

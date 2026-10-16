@@ -17,7 +17,9 @@ import '../../applications/data/applications_repository.dart';
 import '../../applications/data/job_application.dart';
 import '../../applications/presentation/application_detail_screen.dart';
 import '../../applications/presentation/application_form_sheet.dart';
+import '../../applications/data/stale_applications.dart';
 import '../../applications/presentation/applications_screen.dart';
+import '../../applications/presentation/stale_applications_sheet.dart';
 import '../../apply/presentation/apply_confirm_dialog.dart';
 import '../../apply/presentation/apply_kit_sheet.dart';
 import '../../auth/data/app_lock_repository.dart';
@@ -38,9 +40,15 @@ import '../../goals/presentation/goals_screen.dart';
 import '../../interview_prep/data/interview_coach.dart';
 import '../../interview_prep/data/interview_prep_repository.dart';
 import '../../interview_prep/presentation/interview_prep_screen.dart';
+import '../../interview_prep/presentation/mock_interview_screen.dart';
 import '../../interview_prep/presentation/pick_application_sheet.dart';
 import '../../job_alerts/data/job_alert_checker.dart';
 import '../../job_alerts/data/job_alert_store.dart';
+import '../../job_import/data/job_post_reader.dart';
+import '../../job_import/data/job_share_inbox.dart';
+import '../../job_import/presentation/import_job_flow.dart';
+import '../../messages/data/message_writer.dart';
+import '../../messages/presentation/message_composer_screen.dart';
 import '../../notifications/data/local_notifications.dart';
 import '../../notifications/data/notification_settings.dart';
 import '../../notifications/data/notifications.dart';
@@ -51,6 +59,7 @@ import '../../profile/presentation/career_profile_sheet.dart';
 import '../../reminders/data/reminder_scheduler.dart';
 import '../../resume/data/resume_insights.dart';
 import '../../resume/data/resume_reader.dart';
+import '../../settings/data/avatar_repository.dart';
 import '../../settings/presentation/profile_screen.dart';
 import '../../studio/data/career_writer.dart';
 import '../../studio/data/studio_controller.dart';
@@ -81,8 +90,13 @@ class AppShell extends StatefulWidget {
     NotificationSettings? notificationSettings,
     this.interviewCoach,
     this.interviewPreps,
+    this.avatars,
+    this.jobPostReader,
+    this.messageWriter,
+    JobShareInbox? shareInbox,
     this.afterSignIn,
-  })  : events = events ?? ApplicationEventsRepository(),
+  })  : shareInbox = shareInbox ?? const PlatformJobShareInbox(),
+        events = events ?? ApplicationEventsRepository(),
         openUrl = openUrl ?? _openExternally,
         applications = applications ?? ApplicationsRepository(),
         agenda = agenda ?? AgendaRepository(),
@@ -114,6 +128,12 @@ class AppShell extends StatefulWidget {
   final StudioController? studio;
   final InterviewCoach? interviewCoach;
   final InterviewPrepRepository? interviewPreps;
+  final AvatarRepository? avatars;
+  final JobPostReader? jobPostReader;
+  final MessageWriter? messageWriter;
+
+  /// Jobs shared into the app from other apps.
+  final JobShareInbox shareInbox;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -190,8 +210,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   late final _coach = widget.interviewCoach ?? InterviewCoach(_ai);
   late final _interviewPreps =
       widget.interviewPreps ?? InterviewPrepRepository();
+  late final _avatars = widget.avatars ?? AvatarRepository();
+  late final _jobPostReader = widget.jobPostReader ?? JobPostReader(_ai);
+  late final _messageWriter = widget.messageWriter ?? MessageWriter(_ai);
 
   StreamSubscription<String>? _notificationTaps;
+  StreamSubscription<String>? _shares;
 
   /// Agenda state last sent to the reminder scheduler.
   String? _remindersKey;
@@ -225,6 +249,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _workspace.addListener(_syncReminders);
     _discover.addListener(_runPendingSearch);
     _notificationTaps = widget.notifications.taps.listen(_openNotification);
+    _shares = widget.shareInbox.shares.listen(_importJob);
     WidgetsBinding.instance.addPostFrameCallback((_) => _startUp());
   }
 
@@ -241,6 +266,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _notificationTaps?.cancel();
+    _shares?.cancel();
     _workspace.removeListener(_syncReminders);
     _discover.removeListener(_runPendingSearch);
     _workspace.dispose();
@@ -272,7 +298,25 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     } else {
       widget.afterSignIn?.call();
     }
+
+    final shared = await widget.shareInbox.takeInitial();
+    if (shared != null && mounted) await _importJob(shared);
     await _checkJobAlerts();
+  }
+
+  /// A job link or post shared in from another app, or pasted.
+  Future<void> _importJob(String shared) async {
+    if (!mounted) return;
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    final created = await importSharedJob(
+      context,
+      shared: shared,
+      reader: _jobPostReader,
+      applications: widget.applications,
+    );
+    if (created == null || !mounted) return;
+    await _workspace.load();
+    _showMessage('Added ${created.role} at ${created.company}');
   }
 
   /// First-run setup, which also builds the career profile.
@@ -693,6 +737,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           notifications: widget.notifications,
           notificationSettings: widget.notificationSettings,
           onNotificationSettingsChanged: () => _syncReminders(force: true),
+          avatars: _avatars,
+          onAvatarChanged: () => setState(() {}),
         ),
       ),
     );
@@ -721,6 +767,24 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         suggestedRoles: _discover.suggestions,
         onUploadResume: _editCareerProfile,
         job: job,
+      ),
+    );
+  }
+
+  /// Drafts an email for [application]; [followUp] picks the follow-up that
+  /// fits its stage.
+  void _writeMessage(JobApplication application, {bool followUp = false}) {
+    _push<void>(
+      MessageComposerScreen(
+        application: application,
+        writer: _messageWriter,
+        profile: _discover.profile,
+        senderName: widget.authRepository.currentUserName,
+        initialKind: !followUp
+            ? null
+            : application.status == ApplicationStatus.interviewing
+                ? MessageKind.checkIn
+                : MessageKind.followUp,
       ),
     );
   }
@@ -772,6 +836,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         profile: () => _discover.profile,
         resumeText: _resumeTextIfAny,
         onUploadResume: _editCareerProfile,
+        onMockInterview: (prep) => _push<void>(
+          MockInterviewScreen(
+            job: _contextForApplication(application),
+            prep: prep,
+            coach: _coach,
+            resumeText: _resumeTextIfAny,
+          ),
+        ),
         interviewAt: interview?.startsAt,
       ),
     );
@@ -805,6 +877,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onWriteCoverLetter: (a) => _writeCoverLetter(_contextForApplication(a)),
         onTailorResume: (a) => _enhanceResume(_contextForApplication(a)),
         onInterviewPrep: _openInterviewPrep,
+        onWriteMessage: _writeMessage,
         events: widget.events,
         onApply: (a) => _startApply(
           job: _contextForApplication(a),
@@ -822,6 +895,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         final action = await showQuickAddSheet(context);
         if (!mounted) return;
         switch (action) {
+          case QuickAddAction.jobLink:
+            final text = await showPasteJobDialog(context);
+            if (text != null) await _importJob(text);
           case QuickAddAction.application:
             await _addApplication();
           case QuickAddAction.agendaEvent:
@@ -849,6 +925,47 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _Tab.goals => 'New goal',
         _Tab.studio => 'New cover letter',
       };
+
+  /// Reviews applications with no news for weeks.
+  void _reviewQuiet() {
+    showStaleApplicationsSheet(
+      context,
+      applications: StaleApplications.find(
+        _workspace.data?.applications ?? const [],
+      ),
+      onFollowUp: (application) => _writeMessage(application, followUp: true),
+      onWait: (application) async {
+        try {
+          final now = DateTime.now();
+          final updated = await widget.applications.setFollowUp(
+            application.id,
+            DateTime(now.year, now.month, now.day + 7),
+          );
+          _workspace.replaceApplication(updated);
+          return null;
+        } catch (error) {
+          return friendlyErrorMessage(error);
+        }
+      },
+      onClose: (application) async {
+        try {
+          final days = StaleApplications.quietDays(application);
+          await widget.applications
+              .updateStatus(application, ApplicationStatus.rejected);
+          final note = 'Closed: no reply after $days days.';
+          final notes = application.notes;
+          final updated = await widget.applications.updateNotes(
+            application.id,
+            notes == null || notes.trim().isEmpty ? note : '$notes\n$note',
+          );
+          _workspace.replaceApplication(updated);
+          return null;
+        } catch (error) {
+          return friendlyErrorMessage(error);
+        }
+      },
+    );
+  }
 
   Future<void> _addApplication() async {
     final created = await showApplicationFormSheet(
@@ -918,6 +1035,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               onOpenAgenda: () => _select(_Tab.agenda),
               onNotificationsTap: _openNotificationCenter,
               newJobAlerts: _discover.totalFresh,
+              avatarUrl: widget.authRepository.currentUserAvatarUrl,
+              onReviewQuiet: _reviewQuiet,
             ),
           ),
           ApplicationsScreen(

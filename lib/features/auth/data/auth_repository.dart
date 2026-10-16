@@ -19,6 +19,15 @@ class AuthRepository {
     return name is String && name.trim().isNotEmpty ? name.trim() : null;
   }
 
+  /// Profile photo URL, if one was uploaded.
+  String? get currentUserAvatarUrl {
+    final url = _client.auth.currentUser?.userMetadata?['avatar_url'];
+    return url is String && url.isNotEmpty ? url : null;
+  }
+
+  Future<void> setAvatarUrl(String? url) =>
+      _client.auth.updateUser(UserAttributes(data: {'avatar_url': url}));
+
   Future<void> signIn({required String email, required String password}) =>
       _client.auth.signInWithPassword(email: email, password: password);
 

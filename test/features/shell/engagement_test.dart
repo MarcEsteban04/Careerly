@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 import 'package:careerly/core/ai/ai_chain.dart';
+import 'package:careerly/features/applications/data/job_application.dart';
 import 'package:careerly/features/interview_prep/data/interview_coach.dart';
+import 'package:careerly/features/job_import/data/job_post_reader.dart';
+import 'package:careerly/features/messages/data/message_writer.dart';
 import 'package:careerly/features/notifications/data/notifications.dart';
 import 'package:careerly/features/profile/data/career_profile.dart';
 import 'package:careerly/features/studio/data/career_writer.dart';
@@ -178,7 +183,8 @@ void main() {
 
       // Practice mode: answers stay hidden until asked for.
       final question = find.text('Tell me about a time you handled feedback.');
-      await tester.drag(find.byType(ListView).first, const Offset(0, -300));
+      // Mid-screen, clear of the top bar and the bottom action bar.
+      await Scrollable.ensureVisible(tester.element(question), alignment: 0.3);
       await tester.pumpAndSettle();
       await tester.tap(question);
       await tester.pumpAndSettle();
@@ -216,6 +222,173 @@ void main() {
 
       expect(find.text('Walk me through your design process.'), findsOneWidget);
       expect(ai.requests, isEmpty);
+    });
+
+    testWidgets('mock interview scores an answer', (tester) async {
+      final ai = FakeAiProvider('Gemini', reply: sampleKitReply);
+      final preps = FakeInterviewPrepRepository();
+      final sample = sampleDashboardData(DateTime.now());
+      await pumpShell(
+        tester,
+        applications: FakeApplicationsRepository(sample.applications),
+        agenda: FakeAgendaRepository(sample.agenda),
+        interviewCoach: InterviewCoach(AiChain([ai])),
+        interviewPreps: preps,
+      );
+      await tester.tap(find.text('Product Designer').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Prepare for your interview'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Practice a mock interview'));
+      await tester.pumpAndSettle();
+      expect(find.text('1/3'), findsOneWidget);
+      expect(find.text('Get feedback'), findsOneWidget);
+
+      ai.reply = '{"score": 8, "verdict": "Strong and specific.", '
+          '"strengths": ["Clear structure"], '
+          '"improvements": ["Quantify the result"], '
+          '"better_answer": "I led a redesign that..."}';
+      await tester.enterText(
+        find.byType(TextField),
+        'I redesigned our onboarding after user testing showed confusion.',
+      );
+      await tester.pump();
+      await tester.tap(find.text('Get feedback'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Strong and specific.'), findsOneWidget);
+      expect(find.text('Quantify the result'), findsOneWidget);
+      expect(find.text('Next question'), findsOneWidget);
+    });
+  });
+
+  group('job sharing', () {
+    testWidgets('a shared link becomes a tracked job', (tester) async {
+      final ai = FakeAiProvider(
+        'Gemini',
+        reply: '{"is_job": true, "role": "UX Writer", "company": "Kumu", '
+            '"location": "Remote", "description": "Write product copy."}',
+      );
+      final applications = FakeApplicationsRepository();
+      await pumpShell(
+        tester,
+        applications: applications,
+        shareInbox: FakeJobShareInbox(
+          'https://www.linkedin.com/jobs/view/42',
+        ),
+        jobPostReader: JobPostReader(
+          AiChain([ai]),
+          httpClient: MockClient((_) async => http.Response('', 404)),
+        ),
+      );
+
+      expect(find.text('Track this job'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, 'Kumu'), findsOneWidget);
+      await tester.ensureVisible(find.text('Save application'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save application'));
+      await tester.pumpAndSettle();
+
+      final created = applications.items.single;
+      expect(created.role, 'UX Writer');
+      expect(created.status, ApplicationStatus.saved);
+      expect(created.source, 'LinkedIn');
+      expect(created.jobDescription, 'Write product copy.');
+      expect(find.text('Added UX Writer at Kumu'), findsOneWidget);
+    });
+
+    testWidgets('a post that can\'t be read still opens the form',
+        (tester) async {
+      await pumpShell(
+        tester,
+        applications: FakeApplicationsRepository(),
+        shareInbox: FakeJobShareInbox('https://example.com/job'),
+        jobPostReader: JobPostReader(
+          AiChain([FakeAiProvider('Gemini', reply: '{"is_job": false}')]),
+          httpClient: MockClient((_) async => http.Response('', 404)),
+        ),
+      );
+
+      expect(find.textContaining("doesn't look like a job post"), findsOneWidget);
+      expect(
+        find.widgetWithText(TextFormField, 'https://example.com/job'),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('quiet applications', () {
+    testWidgets('can be put on hold or closed from the dashboard',
+        (tester) async {
+      final now = DateTime.now();
+      final old = now.subtract(const Duration(days: 30));
+      final applications = FakeApplicationsRepository([
+        JobApplication(
+          id: 'q1',
+          company: 'Globex',
+          role: 'UI Designer',
+          status: ApplicationStatus.applied,
+          appliedOn: old,
+          createdAt: old,
+          updatedAt: old,
+        ),
+        JobApplication(
+          id: 'q2',
+          company: 'Initech',
+          role: 'Web Designer',
+          status: ApplicationStatus.applied,
+          appliedOn: old,
+          createdAt: old,
+          updatedAt: old,
+        ),
+      ]);
+      await pumpShell(tester, applications: applications);
+
+      await tester.tap(find.text('2 applications have gone quiet'));
+      await tester.pumpAndSettle();
+      expect(find.text('Gone quiet'), findsOneWidget);
+
+      await tester.tap(find.text('Wait a week').first);
+      await tester.pumpAndSettle();
+      expect(applications.followUps.keys, ['q1']);
+
+      await tester.tap(find.text('Close it'));
+      await tester.pumpAndSettle();
+      expect(applications.notes['q2'], startsWith('Closed: no reply after'));
+      expect(find.text('All sorted. Nice work!'), findsOneWidget);
+    });
+  });
+
+  group('messages', () {
+    testWidgets('drafts a follow-up for an application', (tester) async {
+      final ai = FakeAiProvider(
+        'Gemini',
+        reply: '{"subject": "Following up", "body": "Hi, just checking in."}',
+      );
+      final sample = sampleDashboardData(DateTime.now());
+      await pumpShell(
+        tester,
+        applications: FakeApplicationsRepository(sample.applications),
+        messageWriter: MessageWriter(AiChain([ai])),
+      );
+      await tester.ensureVisible(find.text('Senior UI Designer').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Senior UI Designer').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('More'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Write a message'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Write my message'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Following up'), findsOneWidget);
+      expect(find.text('Hi, just checking in.'), findsOneWidget);
+      expect(find.text('Email'), findsOneWidget);
+      expect(ai.requests.single.prompt, contains('Senior UI Designer at Canva'));
+      expect(ai.requests.single.prompt, contains('Marc Esteban'));
     });
   });
 }

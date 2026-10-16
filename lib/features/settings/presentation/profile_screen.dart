@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show StorageException;
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/error_message.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/circle_icon_button.dart';
 import '../../../core/widgets/header_wash.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/user_avatar.dart';
 import '../../auth/data/app_lock_repository.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../discover/data/discover_controller.dart';
@@ -14,6 +18,7 @@ import '../../notifications/data/notification_settings.dart';
 import '../../notifications/data/notifications.dart';
 import '../../profile/data/career_profile.dart';
 import '../../resume/data/resume_insights.dart';
+import '../data/avatar_repository.dart';
 
 /// Profile: who's signed in, the career profile and resume that tailor job
 /// search and AI writing, security, and sign out.
@@ -27,10 +32,16 @@ class ProfileScreen extends StatelessWidget {
     required this.notifications,
     required this.notificationSettings,
     required this.onNotificationSettingsChanged,
+    required this.avatars,
+    required this.onAvatarChanged,
   });
 
   final AuthRepository authRepository;
   final AppLockRepository appLock;
+  final AvatarRepository avatars;
+
+  /// Refreshes places that show the photo, e.g. the dashboard.
+  final VoidCallback onAvatarChanged;
   final Notifications notifications;
   final NotificationSettings notificationSettings;
 
@@ -59,7 +70,11 @@ class ProfileScreen extends StatelessWidget {
             return ListView(
               padding: EdgeInsets.only(bottom: AppSpacing.xl + bottomInset),
               children: [
-                _Header(authRepository: authRepository),
+                _Header(
+                  authRepository: authRepository,
+                  avatars: avatars,
+                  onAvatarChanged: onAvatarChanged,
+                ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                   child: Column(
@@ -119,15 +134,118 @@ class ProfileScreen extends StatelessWidget {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.authRepository});
+class _Header extends StatefulWidget {
+  const _Header({
+    required this.authRepository,
+    required this.avatars,
+    required this.onAvatarChanged,
+  });
 
   final AuthRepository authRepository;
+  final AvatarRepository avatars;
+  final VoidCallback onAvatarChanged;
+
+  @override
+  State<_Header> createState() => _HeaderState();
+}
+
+enum _PhotoAction { camera, gallery, remove }
+
+class _HeaderState extends State<_Header> {
+  bool _isSaving = false;
+
+  void _showMessage(String message) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
+
+  Future<void> _changePhoto() async {
+    final hasPhoto = widget.authRepository.currentUserAvatarUrl != null;
+    final action = await showModalBottomSheet<_PhotoAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            0,
+            AppSpacing.md,
+            AppSpacing.md,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Take a photo'),
+                onTap: () => Navigator.of(context).pop(_PhotoAction.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Choose from gallery'),
+                onTap: () => Navigator.of(context).pop(_PhotoAction.gallery),
+              ),
+              if (hasPhoto)
+                ListTile(
+                  leading: Icon(
+                    Icons.delete_outline_rounded,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  title: Text(
+                    'Remove photo',
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.error),
+                  ),
+                  onTap: () => Navigator.of(context).pop(_PhotoAction.remove),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (action == null || !mounted) return;
+
+    try {
+      if (action == _PhotoAction.remove) {
+        setState(() => _isSaving = true);
+        await widget.avatars.remove();
+        await widget.authRepository.setAvatarUrl(null);
+        _showMessage('Photo removed');
+      } else {
+        final photo = await ImagePicker().pickImage(
+          source: action == _PhotoAction.camera
+              ? ImageSource.camera
+              : ImageSource.gallery,
+          preferredCameraDevice: CameraDevice.front,
+          maxWidth: 600,
+          maxHeight: 600,
+          imageQuality: 85,
+        );
+        if (photo == null || !mounted) return;
+        setState(() => _isSaving = true);
+        final url = await widget.avatars.upload(await photo.readAsBytes());
+        await widget.authRepository.setAvatarUrl(url);
+        _showMessage('Photo updated');
+      }
+      widget.onAvatarChanged();
+    } catch (error) {
+      debugPrint('Avatar update failed: $error');
+      _showMessage(
+        error is StorageException &&
+                (error.statusCode == '404' ||
+                    error.message.toLowerCase().contains('bucket'))
+            ? 'Run the latest database migration to add photos.'
+            : friendlyErrorMessage(error),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final authRepository = widget.authRepository;
     final name = authRepository.currentUserName;
     final email = authRepository.currentUserEmail ?? '';
     final initial =
@@ -163,14 +281,59 @@ class _Header extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: AppSpacing.lg),
-              CircleAvatar(
-                radius: 40,
-                backgroundColor: colorScheme.primary,
-                child: Text(
-                  initial,
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    color: colorScheme.onPrimary,
-                    fontWeight: FontWeight.w700,
+              Semantics(
+                button: true,
+                label: 'Change profile photo',
+                child: InkResponse(
+                  onTap: _isSaving ? null : _changePhoto,
+                  radius: 48,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      UserAvatar(
+                        initial: initial,
+                        photoUrl: authRepository.currentUserAvatarUrl,
+                        radius: 44,
+                      ),
+                      if (_isSaving)
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.35),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Center(
+                              child: SizedBox.square(
+                                dimension: 26,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.6,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      Positioned(
+                        right: -2,
+                        bottom: -2,
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: colorScheme.surface,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: colorScheme.outlineVariant,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.photo_camera_outlined,
+                            size: 17,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

@@ -48,6 +48,24 @@ class InterviewQuestion {
       };
 }
 
+/// Coaching on one mock-interview answer.
+class AnswerFeedback {
+  const AnswerFeedback({
+    required this.score,
+    required this.verdict,
+    required this.strengths,
+    required this.improvements,
+    required this.betterAnswer,
+  });
+
+  /// 1–10; 7 and up would impress.
+  final int score;
+  final String verdict;
+  final List<String> strengths;
+  final List<String> improvements;
+  final String betterAnswer;
+}
+
 /// An AI interview kit for one application.
 class InterviewPrep {
   const InterviewPrep({

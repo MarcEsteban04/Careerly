@@ -1,4 +1,4 @@
-package com.example.careerly
+package com.marcesteban.careerly
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

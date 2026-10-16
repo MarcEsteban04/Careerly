@@ -31,6 +31,14 @@ class FakeAuthRepository implements AuthRepository {
     return signUpSignsIn;
   }
 
+  String? avatarUrl;
+
+  @override
+  String? get currentUserAvatarUrl => avatarUrl;
+
+  @override
+  Future<void> setAvatarUrl(String? url) async => avatarUrl = url;
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
