@@ -20,6 +20,7 @@ import '../data/application_event.dart';
 import '../data/job_application.dart';
 import 'application_form_sheet.dart';
 import 'application_status_style.dart';
+import 'status_picker_sheet.dart';
 import 'widgets/company_avatar.dart';
 
 /// Full view of one application: progress, details, its agenda and notes,
@@ -82,10 +83,9 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
   }
 
   Future<void> _changeStatus(JobApplication application) async {
-    final status = await showModalBottomSheet<ApplicationStatus>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => _StatusSheet(current: application.status),
+    final status = await showStatusPicker(
+      context,
+      current: application.status,
     );
     if (status == null || status == application.status || !mounted) return;
 
@@ -877,59 +877,6 @@ class _DetailRow extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _StatusSheet extends StatelessWidget {
-  const _StatusSheet({required this.current});
-
-  final ApplicationStatus current;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md,
-          0,
-          AppSpacing.md,
-          AppSpacing.md,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xs,
-                0,
-                AppSpacing.xs,
-                AppSpacing.xs,
-              ),
-              child: Text(
-                'Move to…',
-                style: theme.textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            ),
-            for (final status in ApplicationStatus.values)
-              ListTile(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
-                leading: Icon(status.icon, color: status.colorIn(theme)),
-                title: Text(status.label),
-                trailing: status == current
-                    ? Icon(Icons.check_rounded, color: theme.colorScheme.primary)
-                    : null,
-                onTap: () => Navigator.of(context).pop(status),
-              ),
-          ],
-        ),
       ),
     );
   }

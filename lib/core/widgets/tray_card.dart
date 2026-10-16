@@ -10,60 +10,112 @@ class TrayCard extends StatelessWidget {
     required this.body,
     required this.footer,
     required this.onTap,
+    this.onLongPress,
+    this.selected,
     this.semanticLabel,
   });
 
   final Widget body;
   final Widget footer;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+
+  /// Null when selecting isn't on; otherwise shows a check circle.
+  final bool? selected;
   final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isSelected = selected ?? false;
 
     return Semantics(
       button: true,
+      selected: selected,
       label: semanticLabel,
       child: Material(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+        color: isSelected
+            ? colorScheme.primary.withValues(alpha: 0.10)
+            : colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.lg),
-          side: BorderSide(color: colorScheme.outline),
+          side: BorderSide(
+            color: isSelected ? colorScheme.primary : colorScheme.outline,
+            width: isSelected ? 2 : 1,
+          ),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.xxs),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(AppSpacing.sm + 2),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    border: Border.all(color: colorScheme.outline),
+          onLongPress: onLongPress,
+          child: Stack(
+            children: [
+              _content(colorScheme),
+              if (selected != null)
+                Positioned(
+                  top: AppSpacing.sm,
+                  right: AppSpacing.sm,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.surface,
+                      border: Border.all(
+                        color: isSelected
+                            ? colorScheme.primary
+                            : colorScheme.outlineVariant,
+                        width: 2,
+                      ),
+                    ),
+                    child: isSelected
+                        ? Icon(
+                            Icons.check_rounded,
+                            size: 16,
+                            color: colorScheme.onPrimary,
+                          )
+                        : null,
                   ),
-                  child: body,
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.sm,
-                    AppSpacing.xs + 2,
-                    AppSpacing.xs,
-                    AppSpacing.xs,
-                  ),
-                  child: footer,
-                ),
-              ],
-            ),
+            ],
           ),
         ),
       ),
     );
   }
+
+  Widget _content(ColorScheme colorScheme) => Padding(
+    padding: const EdgeInsets.all(AppSpacing.xxs),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.sm + 2),
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(color: colorScheme.outline),
+          ),
+          // Keep the text clear of the check circle while selecting.
+          child: selected == null
+              ? body
+              : Padding(padding: const EdgeInsets.only(right: 30), child: body),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.sm,
+            AppSpacing.xs + 2,
+            AppSpacing.xs,
+            AppSpacing.xs,
+          ),
+          child: footer,
+        ),
+      ],
+    ),
+  );
 }
 
 /// Footer row for a [TrayCard]: clock + text on the left, optional badge.
@@ -107,7 +159,10 @@ class TrayBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: 3),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs,
+        vertical: 3,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(6),
@@ -115,10 +170,10 @@ class TrayBadge extends StatelessWidget {
       child: Text(
         label.toUpperCase(),
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.4,
-            ),
+          color: color,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.4,
+        ),
       ),
     );
   }

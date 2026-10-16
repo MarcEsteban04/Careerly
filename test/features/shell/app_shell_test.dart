@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -18,7 +19,7 @@ import 'shell_test_utils.dart';
 
 void main() {
   Future<({FakeApplicationsRepository applications, FakeGoalsRepository goals})>
-      pumpWithSample(WidgetTester tester) async {
+  pumpWithSample(WidgetTester tester) async {
     final sample = sampleDashboardData(DateTime.now());
     final applications = FakeApplicationsRepository(sample.applications);
     final goals = FakeGoalsRepository(sample.goals);
@@ -54,8 +55,9 @@ void main() {
       expect(find.text('No applications yet'), findsOneWidget);
     });
 
-    testWidgets('spotlights the next event and lists applications',
-        (tester) async {
+    testWidgets('spotlights the next event and lists applications', (
+      tester,
+    ) async {
       await pumpWithSample(tester);
 
       expect(find.text('Portfolio review'), findsOneWidget);
@@ -112,8 +114,7 @@ void main() {
       expect(find.text('Senior UI Designer'), findsNothing);
     });
 
-    testWidgets('+ on the Jobs tab opens the application form',
-        (tester) async {
+    testWidgets('+ on the Jobs tab opens the application form', (tester) async {
       await pumpWithSample(tester);
       await openTab(tester, 'Jobs');
 
@@ -213,8 +214,7 @@ void main() {
       return applications;
     }
 
-    testWidgets('searches the profile role and ranks by match',
-        (tester) async {
+    testWidgets('searches the profile role and ranks by match', (tester) async {
       await pumpDiscover(tester);
 
       expect(find.text('Find jobs that fit you'), findsOneWidget);
@@ -265,8 +265,9 @@ void main() {
       expect(find.text('Career profile'), findsOneWidget);
     });
 
-    testWidgets('saves a job to the tracker from its detail page',
-        (tester) async {
+    testWidgets('saves a job to the tracker from its detail page', (
+      tester,
+    ) async {
       final applications = await pumpDiscover(tester);
       await tester.tap(find.text('Search "UI Designer"'));
       await tester.pumpAndSettle();
@@ -317,7 +318,8 @@ void main() {
       ]);
       final ai = FakeAiProvider(
         'Gemini',
-        reply: '{"resume": "# Maria Santos\\n## Summary\\nUI designer who '
+        reply:
+            '{"resume": "# Maria Santos\\n## Summary\\nUI designer who '
             'ships.", "changes": ["Sharper summary"]}',
       );
       await pumpShell(
@@ -364,8 +366,9 @@ void main() {
   });
 
   group('apply flow', () {
-    testWidgets('applies to a discovered job and sets a follow-up',
-        (tester) async {
+    testWidgets('applies to a discovered job and sets a follow-up', (
+      tester,
+    ) async {
       final applications = FakeApplicationsRepository();
       final agenda = FakeAgendaRepository();
       Uri? opened;
@@ -445,7 +448,9 @@ void main() {
   });
 
   group('job finding', () {
-    Future<FakePreferencesRepository> searchDesigner(WidgetTester tester) async {
+    Future<FakePreferencesRepository> searchDesigner(
+      WidgetTester tester,
+    ) async {
       final preferences = FakePreferencesRepository();
       await pumpShell(
         tester,
@@ -490,6 +495,140 @@ void main() {
     });
   });
 
+  group('tracked board and bulk actions', () {
+    Future<FakeApplicationsRepository> openTracked(WidgetTester tester) async {
+      final fakes = await pumpWithSample(tester);
+      await openTab(tester, 'Jobs');
+      return fakes.applications;
+    }
+
+    testWidgets('the board moves a job with its move button, with undo', (
+      tester,
+    ) async {
+      final applications = await openTracked(tester);
+      await tester.tap(find.byTooltip('Board view'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Saved'), findsWidgets);
+      await tester.tap(find.byTooltip('Move UX Designer'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Interviewing').last);
+      await tester.pumpAndSettle();
+
+      expect(applications.statusChanges.last, (
+        'a4',
+        ApplicationStatus.interviewing,
+      ));
+      expect(find.text('UX Designer moved to Interviewing'), findsOneWidget);
+
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
+      expect(applications.statusChanges.last, ('a4', ApplicationStatus.saved));
+    });
+
+    testWidgets('the board moves a job by drag and drop', (tester) async {
+      final applications = await openTracked(tester);
+      await tester.tap(find.byTooltip('Board view'));
+      await tester.pumpAndSettle();
+
+      final card = find.text('UX Designer');
+      final gesture = await tester.startGesture(tester.getCenter(card));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+      // Into the Applied column, the second one: it starts after the first
+      // column (264 wide) and a 12 gap, inside the 24 page padding. Stay
+      // clear of the right edge, where the board auto-scrolls.
+      final appliedHeader = tester.getTopLeft(find.text('Applied').first);
+      await gesture.moveTo(Offset(320, appliedHeader.dy + 60));
+      await tester.pump();
+      await gesture.moveTo(Offset(322, appliedHeader.dy + 64));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(applications.statusChanges.single, (
+        'a4',
+        ApplicationStatus.applied,
+      ));
+    });
+
+    testWidgets('long-press selects jobs to move or delete together', (
+      tester,
+    ) async {
+      final applications = await openTracked(tester);
+
+      await Scrollable.ensureVisible(
+        tester.element(find.text('Design Engineer')),
+        alignment: 0.4,
+      );
+      await tester.pumpAndSettle();
+      await tester.longPress(find.text('Design Engineer'));
+      await tester.pumpAndSettle();
+      expect(find.text('1 selected'), findsOneWidget);
+      await Scrollable.ensureVisible(
+        tester.element(find.text('UX Designer')),
+        alignment: 0.4,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('UX Designer'));
+      await tester.pumpAndSettle();
+      expect(find.text('2 selected'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Move to…'));
+      await tester.pumpAndSettle();
+      expect(find.text('Move 2 to…'), findsOneWidget);
+      await tester.tap(find.text('Rejected').last);
+      await tester.pumpAndSettle();
+      expect(
+        applications.statusChanges,
+        unorderedEquals([
+          ('a3', ApplicationStatus.rejected),
+          ('a4', ApplicationStatus.rejected),
+        ]),
+      );
+      expect(find.text('Moved 2 to Rejected'), findsOneWidget);
+
+      await Scrollable.ensureVisible(
+        tester.element(find.text('Design Engineer')),
+        alignment: 0.4,
+      );
+      await tester.pumpAndSettle();
+      await tester.longPress(find.text('Design Engineer'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Delete'));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete 1 application?'), findsOneWidget);
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+      expect(applications.deleted, ['a3']);
+    });
+
+    testWidgets('sort and filter', (tester) async {
+      await openTracked(tester);
+
+      await tester.ensureVisible(find.text('Recently updated'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Recently updated'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Company A–Z'));
+      await tester.pumpAndSettle();
+      final airbnb = tester.getTopLeft(find.text('Design Systems')).dy;
+      final stripe = tester.getTopLeft(find.text('Product Designer').last).dy;
+      expect(airbnb, lessThan(stripe));
+
+      await tester.ensureVisible(find.text('Filter'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Filter'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remote only'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Done'));
+      await tester.pumpAndSettle();
+      expect(find.text('Filter · 1'), findsOneWidget);
+      expect(find.text('Design Engineer'), findsOneWidget);
+      expect(find.text('Senior UI Designer'), findsNothing);
+    });
+  });
+
   group('tracking', () {
     testWidgets('timeline shows status history', (tester) async {
       final sample = sampleDashboardData(DateTime.now());
@@ -523,8 +662,9 @@ void main() {
       expect(find.text('Added as Applied'), findsOneWidget);
     });
 
-    testWidgets('swiping an agenda item deletes it after confirming',
-        (tester) async {
+    testWidgets('swiping an agenda item deletes it after confirming', (
+      tester,
+    ) async {
       final sample = sampleDashboardData(DateTime.now());
       final agenda = FakeAgendaRepository(sample.agenda);
       await pumpShell(
@@ -534,7 +674,10 @@ void main() {
       );
       await openTab(tester, 'Agenda');
 
-      await tester.drag(find.text('Email the recruiter'), const Offset(-500, 0));
+      await tester.drag(
+        find.text('Email the recruiter'),
+        const Offset(-500, 0),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Delete'));
       await tester.pumpAndSettle();

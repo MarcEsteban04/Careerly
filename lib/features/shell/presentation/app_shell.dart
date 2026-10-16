@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/ai/ai_chain.dart';
@@ -18,6 +19,7 @@ import '../../applications/data/job_application.dart';
 import '../../applications/presentation/application_detail_screen.dart';
 import '../../applications/presentation/application_form_sheet.dart';
 import '../../applications/data/stale_applications.dart';
+import '../../applications/data/tracked_view.dart';
 import '../../applications/presentation/applications_screen.dart';
 import '../../applications/presentation/stale_applications_sheet.dart';
 import '../../apply/presentation/apply_confirm_dialog.dart';
@@ -213,6 +215,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   late final _interviewPreps =
       widget.interviewPreps ?? InterviewPrepRepository();
   late final _avatars = widget.avatars ?? AvatarRepository();
+
+  /// Tracked list or board, sort, filters and bulk selection.
+  final _trackedView = TrackedViewController(prefs: SharedPreferencesAsync());
   late final _jobPostReader = widget.jobPostReader ?? JobPostReader(_ai);
   late final _messageWriter = widget.messageWriter ?? MessageWriter(_ai);
 
@@ -277,10 +282,119 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _jobsSearch.dispose();
     _jobsSearchFocus.dispose();
     _discoverSearch.dispose();
+    _trackedView.dispose();
     super.dispose();
   }
 
-  void _select(_Tab tab) => setState(() => _tab = tab);
+  void _select(_Tab tab) {
+    _trackedView.clearSelection();
+    setState(() => _tab = tab);
+  }
+
+  // Tracked: board moves and bulk actions ------------------------------------
+
+  /// Moves [applications] to [status]. A single move (e.g. a board drop)
+  /// can be undone from the snackbar.
+  Future<void> _moveApplications(
+    List<JobApplication> applications,
+    ApplicationStatus status,
+  ) async {
+    final moving = [
+      for (final a in applications)
+        if (a.status != status) a,
+    ];
+    _trackedView.clearSelection();
+    if (moving.isEmpty) return;
+
+    var failed = 0;
+    for (final application in moving) {
+      try {
+        final updated =
+            await widget.applications.updateStatus(application, status);
+        _workspace.replaceApplication(updated);
+      } catch (error) {
+        debugPrint('Moving ${application.id} failed: $error');
+        failed++;
+      }
+    }
+    if (!mounted) return;
+
+    final moved = moving.length - failed;
+    if (moved == 0) {
+      _showMessage("Couldn't move that. Check your connection and try again.");
+      return;
+    }
+    final label = moved == 1
+        ? '${moving.first.role} moved to ${status.label}'
+        : 'Moved $moved to ${status.label}';
+    final single = moving.length == 1 ? moving.first : null;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(failed == 0 ? label : "$label. $failed couldn't move."),
+          action: single == null
+              ? null
+              : SnackBarAction(
+                  label: 'Undo',
+                  onPressed: () async {
+                    final current =
+                        _workspace.data?.applicationById(single.id) ?? single;
+                    try {
+                      final restored = await widget.applications
+                          .updateStatus(current, single.status);
+                      _workspace.replaceApplication(restored);
+                    } catch (error) {
+                      _showMessage(friendlyErrorMessage(error));
+                    }
+                  },
+                ),
+        ),
+      );
+  }
+
+  Future<void> _deleteApplications(List<JobApplication> applications) async {
+    if (applications.isEmpty) return;
+    final count = applications.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          count == 1 ? 'Delete 1 application?' : 'Delete $count applications?',
+        ),
+        content: const Text(
+          'They\'ll be removed with their timeline and notes. Linked agenda '
+          'items stay but lose the link.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    _trackedView.clearSelection();
+    var failed = 0;
+    for (final application in applications) {
+      if (await _workspace.deleteApplication(application.id) != null) failed++;
+    }
+    final deleted = count - failed;
+    _showMessage(
+      failed == 0
+          ? (deleted == 1 ? 'Deleted 1 application' : 'Deleted $deleted applications')
+          : "Deleted $deleted. $failed couldn't be deleted.",
+    );
+  }
 
   // Start-up -------------------------------------------------------------------
 
@@ -1015,7 +1129,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final name = widget.authRepository.currentUserName;
     final email = widget.authRepository.currentUserEmail ?? '';
 
-    return Scaffold(
+    final scaffold = Scaffold(
       extendBody: true,
       body: IndexedStack(
         index: _tab.index,
@@ -1059,6 +1173,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             onEditProfile: _editCareerProfile,
             onDismissListing: _dismissListing,
             onToggleSaveSearch: _toggleSaveSearch,
+            trackedView: _trackedView,
+            onMoveApplications: _moveApplications,
+            onDeleteApplications: _deleteApplications,
           ),
           AgendaScreen(
             controller: _workspace,
@@ -1093,6 +1210,19 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           badges: {_Tab.agenda.index: _dueSoonCount},
         ),
       ),
+    );
+
+    // Back leaves selection mode before leaving the app.
+    return ListenableBuilder(
+      listenable: _trackedView,
+      builder: (context, child) => PopScope(
+        canPop: !_trackedView.isSelecting,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _trackedView.clearSelection();
+        },
+        child: child!,
+      ),
+      child: scaffold,
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
@@ -12,7 +13,11 @@ import '../../discover/presentation/discover_view.dart';
 import '../../shell/data/workspace_controller.dart';
 import '../../shell/presentation/widgets/workspace_view.dart';
 import '../data/job_application.dart';
+import '../data/tracked_view.dart';
+import 'status_picker_sheet.dart';
+import 'widgets/application_board.dart';
 import 'widgets/job_card.dart';
+import 'widgets/tracked_toolbar.dart';
 
 enum JobsSection { tracked, discover }
 
@@ -37,9 +42,21 @@ class ApplicationsScreen extends StatelessWidget {
     required this.onEditProfile,
     required this.onDismissListing,
     required this.onToggleSaveSearch,
+    required this.trackedView,
+    required this.onMoveApplications,
+    required this.onDeleteApplications,
   });
 
   final WorkspaceController controller;
+
+  /// List or board, sort, filters and selection for Tracked.
+  final TrackedViewController trackedView;
+
+  /// Moves applications to a stage (one dropped on the board, or several
+  /// selected).
+  final void Function(List<JobApplication> applications, ApplicationStatus to)
+      onMoveApplications;
+  final ValueChanged<List<JobApplication>> onDeleteApplications;
   final JobsSection section;
   final ValueChanged<JobsSection> onSectionChanged;
   final DiscoverController discover;
@@ -58,12 +75,28 @@ class ApplicationsScreen extends StatelessWidget {
   final ValueChanged<String> onOpenApplication;
   final VoidCallback onAdd;
 
-  static bool _matches(JobApplication a, String query) {
-    if (query.isEmpty) return true;
-    final q = query.toLowerCase();
-    return a.role.toLowerCase().contains(q) ||
-        a.company.toLowerCase().contains(q) ||
-        (a.location?.toLowerCase().contains(q) ?? false);
+  Future<void> _moveSelected(
+    BuildContext context,
+    List<JobApplication> selected,
+  ) async {
+    final status = await showStatusPicker(
+      context,
+      title: 'Move ${selected.length} to…',
+    );
+    if (status != null) onMoveApplications(selected, status);
+  }
+
+  Future<void> _pickStage(
+    BuildContext context,
+    JobApplication application,
+  ) async {
+    final status = await showStatusPicker(
+      context,
+      current: application.status,
+    );
+    if (status != null && status != application.status) {
+      onMoveApplications([application], status);
+    }
   }
 
   @override
@@ -73,15 +106,23 @@ class ApplicationsScreen extends StatelessWidget {
         controller,
         searchController,
         discover,
+        trackedView,
       ]),
       builder: (context, _) {
         final data = controller.data;
         final applications = data?.applications ?? const <JobApplication>[];
         final query = searchController.text.trim();
-        final visible = applications
-            .where((a) => filter == null || a.status == filter)
-            .where((a) => _matches(a, query))
-            .toList();
+        final board = trackedView.layout == TrackedLayout.board;
+        final visible = trackedView.apply(
+          applications,
+          // The board shows every stage as a column.
+          status: board ? null : filter,
+          query: query,
+        );
+        final selected = [
+          for (final a in applications)
+            if (trackedView.isSelected(a.id)) a,
+        ];
         final discovering = section == JobsSection.discover;
 
         final sectionTabs = SegmentedTabs(
@@ -121,7 +162,7 @@ class ApplicationsScreen extends StatelessWidget {
           );
         }
 
-        return TabPage(
+        final page = TabPage(
           title: 'Jobs',
           subtitle: data == null
               ? null
@@ -140,37 +181,110 @@ class ApplicationsScreen extends StatelessWidget {
                 focusNode: searchFocusNode,
               ),
               const SizedBox(height: AppSpacing.md),
-              _FilterBar(
-                applications: applications,
-                selected: filter,
-                onSelected: onFilterChanged,
-              ),
+              TrackedToolbar(view: trackedView),
+              if (!board) ...[
+                const SizedBox(height: AppSpacing.sm),
+                _FilterBar(
+                  applications: applications,
+                  selected: filter,
+                  onSelected: onFilterChanged,
+                ),
+              ],
             ],
           ),
           children: [
             WorkspaceView(
               controller: controller,
-              builder: (context, data) => visible.isEmpty
-                  ? AppCard(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md,
-                        vertical: AppSpacing.lg,
-                      ),
-                      child: _buildEmpty(applications.isEmpty, query),
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (final application in visible) ...[
-                          JobCard(
-                            application: application,
-                            nextEvent: data.nextEventFor(application.id),
-                            onTap: () => onOpenApplication(application.id),
-                          ),
-                          const SizedBox(height: AppSpacing.sm),
-                        ],
-                      ],
+              builder: (context, data) {
+                if (applications.isEmpty || (!board && visible.isEmpty)) {
+                  return AppCard(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.lg,
                     ),
+                    child: _buildEmpty(applications.isEmpty, query),
+                  );
+                }
+                if (board) {
+                  return ApplicationBoard(
+                    applications: visible,
+                    stages: [
+                      for (final stage in ApplicationStatus.values)
+                        if (!(trackedView.hideClosed &&
+                            stage == ApplicationStatus.rejected))
+                          stage,
+                    ],
+                    onOpen: (a) => onOpenApplication(a.id),
+                    onMove: (a, status) => onMoveApplications([a], status),
+                    onPickStage: (a) => _pickStage(context, a),
+                  );
+                }
+                final selecting = trackedView.isSelecting;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (!selecting && visible.length > 1)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                        child: Text(
+                          'Tip: long-press a job to select several.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                        ),
+                      ),
+                    for (final application in visible) ...[
+                      JobCard(
+                        application: application,
+                        nextEvent: data.nextEventFor(application.id),
+                        selected: selecting
+                            ? trackedView.isSelected(application.id)
+                            : null,
+                        onTap: selecting
+                            ? () => trackedView.toggleSelected(application.id)
+                            : () => onOpenApplication(application.id),
+                        onLongPress: () {
+                          HapticFeedback.selectionClick();
+                          trackedView.toggleSelected(application.id);
+                        },
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ],
+        );
+
+        if (!trackedView.isSelecting) return page;
+        // Floats at the top so it stays in reach wherever the list is
+        // scrolled.
+        return Stack(
+          children: [
+            page,
+            Positioned(
+              top: MediaQuery.paddingOf(context).top + AppSpacing.xs,
+              left: AppSpacing.md,
+              right: AppSpacing.md,
+              child: Material(
+                color: Colors.transparent,
+                elevation: 6,
+                shadowColor: Colors.black.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(999),
+                child: SelectionBar(
+                  count: selected.length,
+                  allSelected: selected.length == visible.length,
+                  onSelectAll: () => selected.length == visible.length
+                      ? trackedView.clearSelection()
+                      : trackedView.selectAll(visible.map((a) => a.id)),
+                  onMove: () => _moveSelected(context, selected),
+                  onDelete: () => onDeleteApplications(selected),
+                  onCancel: trackedView.clearSelection,
+                ),
+              ),
             ),
           ],
         );
@@ -195,9 +309,19 @@ class ApplicationsScreen extends StatelessWidget {
         message: 'Try a different role, company or location.',
       );
     }
+    if (trackedView.activeFilterCount > 0) {
+      return EmptyState(
+        icon: Icons.tune_rounded,
+        title: 'Nothing matches your filters',
+        message: 'Turn a filter off to see more.',
+        actionLabel: 'Clear filters',
+        actionIcon: Icons.filter_alt_off_outlined,
+        onAction: trackedView.clearFilters,
+      );
+    }
     return EmptyState(
       icon: Icons.filter_list_rounded,
-      title: 'Nothing in ${filter!.label}',
+      title: 'Nothing in ${filter?.label ?? 'this view'}',
       message: 'Applications show up here as you move them along.',
     );
   }

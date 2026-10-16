@@ -51,21 +51,26 @@ class FakeApplicationsRepository implements ApplicationsRepository {
     return items;
   }
 
+  /// (application id, new status) for each status change.
+  final statusChanges = <(String, ApplicationStatus)>[];
+
   @override
   Future<JobApplication> updateStatus(
     JobApplication application,
     ApplicationStatus status,
-  ) async =>
-      JobApplication(
-        id: application.id,
-        company: application.company,
-        role: application.role,
-        status: status,
-        location: application.location,
-        appliedOn: application.appliedOn ?? DateTime.now(),
-        createdAt: application.createdAt,
-        updatedAt: DateTime.now(),
-      );
+  ) async {
+    statusChanges.add((application.id, status));
+    return JobApplication(
+      id: application.id,
+      company: application.company,
+      role: application.role,
+      status: status,
+      location: application.location,
+      appliedOn: application.appliedOn ?? DateTime.now(),
+      createdAt: application.createdAt,
+      updatedAt: DateTime.now(),
+    );
+  }
 
   final deleted = <String>[];
 

@@ -18,10 +18,16 @@ class JobCard extends StatelessWidget {
     required this.application,
     required this.onTap,
     this.nextEvent,
+    this.onLongPress,
+    this.selected,
   });
 
   final JobApplication application;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+
+  /// Null outside selection mode.
+  final bool? selected;
 
   /// The application's next open agenda item, if any.
   final AgendaEvent? nextEvent;
@@ -45,6 +51,8 @@ class JobCard extends StatelessWidget {
 
     return TrayCard(
       onTap: onTap,
+      onLongPress: onLongPress,
+      selected: selected,
       semanticLabel: '${application.role} at ${application.company}, '
           '${application.status.label}',
       body: Column(
