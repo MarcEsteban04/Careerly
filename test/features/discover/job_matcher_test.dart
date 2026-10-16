@@ -67,4 +67,80 @@ void main() {
     // "Go" must not match inside "Google".
     expect(match.reasons.any((r) => r.contains('Go')), isFalse);
   });
+
+  group('breakdown', () {
+    const developer = CareerProfile(
+      targetRoles: ['Full Stack Developer'],
+      skills: ['React', 'Nextjs', 'MS Excel', 'MySQL'],
+      workSetup: WorkSetup.remote,
+    );
+
+    JobListing fullStack({bool isRemote = true}) => job(
+          title: 'Full Stack Developer',
+          isRemote: isRemote,
+          description: 'Build with ReactJS and Next.js, PostgreSQL and '
+              'Docker. Reports in Excel. 3+ years of professional experience.',
+        );
+
+    test('splits the score into role, skills and setup', () {
+      final match = JobMatcher.match(fullStack(), developer)!;
+
+      expect(match.bestRole, 'Full Stack Developer');
+      expect(match.rolePoints, JobMatcher.roleWeight);
+      expect(match.setupPoints, JobMatcher.setupWeight);
+      expect(match.setupFit, SetupFit.good);
+      expect(
+        match.score,
+        match.rolePoints + match.skillPoints + match.setupPoints,
+      );
+    });
+
+    test('matches skills however they are written', () {
+      final match = JobMatcher.match(fullStack(), developer)!;
+
+      // React = ReactJS, Nextjs = Next.js.
+      expect(match.matchedSkills, containsAll(['React', 'Nextjs']));
+    });
+
+    test('lists skills the post wants that the profile lacks', () {
+      final match = JobMatcher.match(fullStack(), developer)!;
+
+      // Excel is covered by "MS Excel".
+      expect(match.missingSkills, ['PostgreSQL', 'Docker']);
+    });
+
+    test('reads how many years of experience a post asks for', () {
+      expect(JobMatcher.match(fullStack(), developer)!.yearsAsked, 3);
+      expect(JobMatcher.yearsAsked('2-4 years of relevant work experience'), 2);
+      expect(JobMatcher.yearsAsked('at least 5 yrs experience'), 5);
+      expect(JobMatcher.yearsAsked('Founded 10 years ago'), isNull);
+    });
+
+    test('a post that says it is remote counts as remote', () {
+      for (final listing in [
+        job(title: 'Web Developer (Remote)'),
+        job(
+          title: 'Web Developer',
+          description: 'Join our team on a part-time, remote basis.',
+        ),
+        job(title: 'Web Developer', description: 'Work from home, flexible.'),
+      ]) {
+        expect(JobMatcher.looksRemote(listing), isTrue, reason: listing.title);
+        expect(JobMatcher.match(listing, developer)!.setupFit, SetupFit.good);
+      }
+      expect(
+        JobMatcher.looksRemote(
+          job(title: 'Web Developer', description: 'Onsite in Makati.'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('an on-site job is a poor fit for someone who wants remote', () {
+      final match =
+          JobMatcher.match(fullStack(isRemote: false), developer)!;
+      expect(match.setupFit, SetupFit.poor);
+      expect(match.setupNote, contains('remote'));
+    });
+  });
 }

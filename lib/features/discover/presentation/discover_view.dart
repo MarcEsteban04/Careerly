@@ -10,6 +10,7 @@ import '../../profile/data/career_profile.dart';
 import '../data/discover_controller.dart';
 import '../data/job_search_query.dart';
 import 'widgets/country_picker_sheet.dart';
+import 'widgets/salary_filter_sheet.dart';
 import 'widgets/job_listing_card.dart';
 
 /// Header for the Discover section: profile summary, search and filters.
@@ -101,6 +102,21 @@ class DiscoverHeader extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.xs),
               _PostedWithinButton(controller: controller),
+              const SizedBox(width: AppSpacing.xs),
+              PillChip(
+                label: switch ((
+                  controller.minSalary,
+                  controller.salaryShownOnly,
+                )) {
+                  (null, false) => 'Salary',
+                  (null, true) => 'Pay shown',
+                  (final min?, _) => '${pesoThousands(min)}+',
+                },
+                leading: const Icon(Icons.payments_outlined),
+                selected: controller.hasSalaryFilter,
+                onTap: () =>
+                    showSalaryFilterSheet(context, controller: controller),
+              ),
             ],
           ),
         ),
@@ -172,14 +188,30 @@ class DiscoverResults extends StatelessWidget {
       );
     }
 
+    final hidden = controller.hiddenBySalary;
+    void clearSalary() =>
+        controller.setSalaryFilter(minimum: null, shownOnly: false);
+
     if (results.isEmpty) {
       return _card(
-        EmptyState(
-          icon: Icons.search_off_rounded,
-          title: 'No jobs found',
-          message: 'Try a broader role, another location, or a longer time '
-              'range.',
-        ),
+        hidden > 0
+            ? EmptyState(
+                icon: Icons.payments_outlined,
+                title: 'No jobs match your salary filter',
+                message: hidden == 1
+                    ? '1 job was found but is hidden by the salary filter.'
+                    : '$hidden jobs were found but are hidden by the salary '
+                        'filter.',
+                actionLabel: 'Show them',
+                actionIcon: Icons.filter_alt_off_outlined,
+                onAction: clearSalary,
+              )
+            : EmptyState(
+                icon: Icons.search_off_rounded,
+                title: 'No jobs found',
+                message: 'Try a broader role, another location, or a longer '
+                    'time range.',
+              ),
       );
     }
 
@@ -195,6 +227,30 @@ class DiscoverResults extends StatelessWidget {
           FormBanner(message: controller.notice!, tone: FormBannerTone.info),
           const SizedBox(height: AppSpacing.md),
         ],
+        if (hidden > 0)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.payments_outlined,
+                  size: 16,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: AppSpacing.xxs),
+                Expanded(
+                  child: Text(
+                    hidden == 1
+                        ? '1 job hidden by your salary filter'
+                        : '$hidden jobs hidden by your salary filter',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ),
+                TextButton(onPressed: clearSalary, child: const Text('Show all')),
+              ],
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
           child: Row(

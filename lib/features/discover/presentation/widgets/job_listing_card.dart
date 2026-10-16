@@ -6,6 +6,7 @@ import '../../../../core/widgets/tag_pill.dart';
 import '../../../../core/widgets/tray_card.dart';
 import '../../../applications/presentation/widgets/salary_text.dart';
 import '../../data/discover_controller.dart';
+import '../../data/job_matcher.dart';
 import 'company_logo.dart';
 import 'match_style.dart';
 
@@ -78,7 +79,8 @@ class JobListingCard extends StatelessWidget {
             spacing: AppSpacing.xs,
             runSpacing: AppSpacing.xs,
             children: [
-              if (job.isRemote)
+              if (ranked.scam.isFlagged) ScamPill(risk: ranked.scam.risk),
+              if (JobMatcher.looksRemote(job))
                 const TagPill(
                   label: 'Remote',
                   leading: Icon(Icons.public_rounded, size: 14),
@@ -108,6 +110,30 @@ class JobListingCard extends StatelessWidget {
                 ),
             ],
           ),
+          if (match != null && match.reasons.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                Icon(
+                  Icons.check_circle_rounded,
+                  size: 16,
+                  color: matchColor(match.score, theme),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    match.reasons.join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
       footer: TrayFooter(

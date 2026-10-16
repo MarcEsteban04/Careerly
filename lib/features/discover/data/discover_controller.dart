@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/ai/ai_chain.dart';
 import '../../../core/utils/error_message.dart';
+import '../../../core/utils/salary.dart';
 import '../../job_alerts/data/job_alert_store.dart';
 import '../../profile/data/career_profile.dart';
 import '../../profile/data/career_profile_repository.dart';
@@ -13,15 +14,21 @@ import 'job_search_query.dart';
 import 'jooble_client.dart';
 import 'jsearch_client.dart';
 import 'search_preferences_repository.dart';
-import 'search_scope_store.dart';
+import 'discover_settings_store.dart';
+import 'scam_check.dart';
 
-/// A listing with its match against the career profile (if any).
+/// A listing with its match against the career profile (if any) and any
+/// scam warning signs.
 class RankedListing {
-  const RankedListing(this.listing, this.match);
+  const RankedListing(this.listing, this.match, {this.scam = ScamCheck.clear});
 
   final JobListing listing;
   final JobMatch? match;
+  final ScamCheck scam;
 }
+
+/// Salary steps offered by the salary filter, in pesos a month.
+const salaryFilterSteps = [20000, 30000, 50000, 80000, 100000];
 
 /// The pages of one search loaded so far.
 class _SearchPages {
@@ -49,26 +56,30 @@ class DiscoverController extends ChangeNotifier {
     this.resumeReader,
     this.preferences,
     this.alerts,
-    this.scopeStore,
+    this.settings,
   }) : _profile = profiles.read() {
     // Remote-minded profiles start on remote jobs.
     if (_profile.workSetup == WorkSetup.remote) _scope = SearchScope.remote;
     _loadPreferences();
-    _loadScope();
+    _loadSettings();
   }
 
-  /// Remembers the chosen search area; optional.
-  final SearchScopeStore? scopeStore;
+  /// Remembers the search area and salary filter; optional.
+  final DiscoverSettingsStore? settings;
 
-  Future<void> _loadScope() async {
+  Future<void> _loadSettings() async {
+    final store = settings;
+    if (store == null) return;
     try {
-      final saved = await scopeStore?.read();
+      final (scope, (minSalary, shownOnly)) =
+          await (store.readScope(), store.readSalary()).wait;
       // A search already running keeps its area.
-      if (saved == null || saved == _scope || _query != null) return;
-      _scope = saved;
-      notifyListeners();
+      if (scope != null && _query == null) _scope = scope;
+      _minSalary = minSalary;
+      _salaryShownOnly = shownOnly;
+      _refreshResults();
     } catch (e) {
-      debugPrint('Saved search area unavailable: $e');
+      debugPrint('Saved search settings unavailable: $e');
     }
   }
 
@@ -104,6 +115,30 @@ class DiscoverController extends ChangeNotifier {
   String? _loadMoreError;
   String? _notice;
   int _generation = 0;
+  int? _minSalary;
+  bool _salaryShownOnly = false;
+  int _hiddenBySalary = 0;
+
+  /// Minimum monthly pay in pesos; null for any.
+  int? get minSalary => _minSalary;
+
+  /// Hide jobs that don't show their pay.
+  bool get salaryShownOnly => _salaryShownOnly;
+
+  bool get hasSalaryFilter => _minSalary != null || _salaryShownOnly;
+
+  /// Loaded jobs the salary filter is hiding.
+  int get hiddenBySalary => _hiddenBySalary;
+
+  /// Filters results by pay; instant, with no new search.
+  void setSalaryFilter({required int? minimum, required bool shownOnly}) {
+    _minSalary = minimum;
+    _salaryShownOnly = shownOnly;
+    _refreshResults();
+    _bestEffort(
+      () => settings?.saveSalary(minimum: minimum, shownOnly: shownOnly),
+    );
+  }
 
   CareerProfile get profile => _profile;
   SearchScope get scope => _scope;
@@ -166,7 +201,7 @@ class DiscoverController extends ChangeNotifier {
     if (scope == _scope) return;
     _scope = scope;
     notifyListeners();
-    _bestEffort(() => scopeStore?.save(scope));
+    _bestEffort(() => settings?.saveScope(scope));
     if (_results != null) search(_keywords);
   }
 
@@ -528,17 +563,38 @@ class DiscoverController extends ChangeNotifier {
       : friendlyErrorMessage(e);
 
   /// Scores every job against the profile, best match first within each
-  /// page, leaving out jobs marked "Not interested".
-  List<RankedListing> _rank(_SearchPages pages) => [
-        for (final page in pages.pages) ..._rankPage(page),
-      ];
+  /// page, leaving out jobs marked "Not interested" or outside the salary
+  /// filter.
+  List<RankedListing> _rank(_SearchPages pages) {
+    _hiddenBySalary = 0;
+    return [for (final page in pages.pages) ..._rankPage(page)];
+  }
+
+  /// Whether [listing] passes the salary filter. Jobs that don't show pay
+  /// pass unless [salaryShownOnly] is on.
+  bool _passesSalary(JobListing listing) {
+    if (_minSalary == null && !_salaryShownOnly) return true;
+    final pay = monthlyPesos(listing.salary);
+    if (pay == null) return !_salaryShownOnly;
+    return _minSalary == null || pay >= _minSalary!;
+  }
 
   List<RankedListing> _rankPage(List<JobListing> listings) {
-    final ranked = [
-      for (final listing in listings)
-        if (!_dismissed.contains(listing.dedupeKey))
-          RankedListing(listing, JobMatcher.match(listing, _profile)),
-    ];
+    final ranked = <RankedListing>[];
+    for (final listing in listings) {
+      if (_dismissed.contains(listing.dedupeKey)) continue;
+      if (!_passesSalary(listing)) {
+        _hiddenBySalary++;
+        continue;
+      }
+      ranked.add(
+        RankedListing(
+          listing,
+          JobMatcher.match(listing, _profile),
+          scam: ScamCheck.of(listing),
+        ),
+      );
+    }
     if (!_profile.isEmpty) {
       ranked.sort(
         (a, b) => (b.match?.score ?? 0).compareTo(a.match?.score ?? 0),

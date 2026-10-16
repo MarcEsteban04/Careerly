@@ -32,7 +32,7 @@ import '../../discover/data/discover_controller.dart';
 import '../../discover/data/jooble_client.dart';
 import '../../discover/data/jsearch_client.dart';
 import '../../discover/data/search_preferences_repository.dart';
-import '../../discover/data/search_scope_store.dart';
+import '../../discover/data/discover_settings_store.dart';
 import '../../discover/presentation/job_listing_screen.dart';
 import '../../documents/data/career_document.dart';
 import '../../documents/data/documents_repository.dart';
@@ -192,7 +192,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         aiSearch: AiJobSearchClient(_ai),
         resumeReader: ResumeReader(_ai),
         preferences: SearchPreferencesRepository(),
-        scopeStore: SearchScopeStore(),
+        settings: DiscoverSettingsStore(),
         alerts: _alertStore,
       );
 
@@ -818,6 +818,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _push<void>(
       JobListingScreen(
         ranked: ranked,
+        profileYears: _discover.profile.effectiveYears,
         isSaved: _isListingSaved(ranked),
         onSave: () => _saveListing(ranked),
         onWriteCoverLetter: () => _writeCoverLetter(_contextForListing(ranked)),

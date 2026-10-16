@@ -3,10 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:careerly/core/ai/ai_chain.dart';
 import 'package:careerly/features/discover/data/ai_job_search_client.dart';
 import 'package:careerly/features/discover/data/discover_controller.dart';
+import 'package:careerly/features/discover/data/discover_settings_store.dart';
 import 'package:careerly/features/discover/data/job_listing.dart';
 import 'package:careerly/features/discover/data/job_search_query.dart';
 import 'package:careerly/features/discover/data/jooble_client.dart';
 import 'package:careerly/features/discover/data/jsearch_client.dart';
+import 'package:careerly/features/discover/data/scam_check.dart';
 import 'package:careerly/features/profile/data/career_profile.dart';
 import 'package:careerly/features/resume/data/resume_insights.dart';
 
@@ -64,13 +66,13 @@ void main() {
 
   group('pagination', () {
     JobListing job(int n) => JobListing(
-          id: 'p$n',
-          title: 'Designer $n',
-          company: 'Company $n',
-          source: 'LinkedIn',
-          applyUrl: 'https://example.com/$n',
-          description: '',
-        );
+      id: 'p$n',
+      title: 'Designer $n',
+      company: 'Company $n',
+      source: 'LinkedIn',
+      applyUrl: 'https://example.com/$n',
+      description: '',
+    );
 
     DiscoverController withPages(Map<int, List<JobListing>> pages) =>
         DiscoverController(
@@ -103,7 +105,9 @@ void main() {
     });
 
     test('a short first page has no more', () async {
-      final controller = withPages({1: [job(1), job(2)]});
+      final controller = withPages({
+        1: [job(1), job(2)],
+      });
 
       await controller.search('designer');
 
@@ -133,7 +137,8 @@ void main() {
   test('AI web search backs up the job APIs when they run out', () async {
     final ai = FakeAiProvider(
       'Groq',
-      reply: '[{"title": "UI Designer", "company": "Bjak", '
+      reply:
+          '[{"title": "UI Designer", "company": "Bjak", '
           '"location": "Remote", "url": "https://jobs.example.com/1", '
           '"source": "Ashby", "remote": true}]',
     );
@@ -163,5 +168,95 @@ void main() {
     await controller.search('ui designer');
 
     expect(controller.error, contains("used this month's free job searches"));
+  });
+
+  group('salary filter', () {
+    JobListing paid(String id, String? salary) => JobListing(
+      id: id,
+      title: 'Developer $id',
+      company: 'Co $id',
+      source: 'LinkedIn',
+      applyUrl: 'https://example.com/$id',
+      salary: salary,
+      description: '',
+    );
+
+    final listings = [
+      paid('low', '₱25,000/month'),
+      paid('high', 'PHP 60,000 - 80,000 a month'),
+      paid('none', null),
+    ];
+
+    List<String> shown(DiscoverController c) =>
+        c.results!.map((r) => r.listing.id).toList();
+
+    test('hides lower pay instantly; unknown pay stays unless asked', () async {
+      useInMemoryPrefs();
+      final store = DiscoverSettingsStore();
+      final controller = DiscoverController(
+        jsearch: FakeJSearchClient(listings),
+        jooble: JoobleClient(apiKey: ''),
+        profiles: FakeCareerProfileRepository(),
+        settings: store,
+      );
+      await controller.search('developer');
+      final searches = (controller.jsearch as FakeJSearchClient).queries.length;
+
+      controller.setSalaryFilter(minimum: 30000, shownOnly: false);
+      expect(shown(controller), ['high', 'none']);
+      expect(controller.hiddenBySalary, 1);
+
+      controller.setSalaryFilter(minimum: 30000, shownOnly: true);
+      expect(shown(controller), ['high']);
+      expect(controller.hiddenBySalary, 2);
+      // Filtering never costs a search.
+      expect(
+        (controller.jsearch as FakeJSearchClient).queries,
+        hasLength(searches),
+      );
+
+      // Remembered for next time.
+      await pumpEventQueue();
+      final next = DiscoverController(
+        jsearch: FakeJSearchClient(listings),
+        jooble: JoobleClient(apiKey: ''),
+        profiles: FakeCareerProfileRepository(),
+        settings: store,
+      );
+      await pumpEventQueue();
+      expect(next.minSalary, 30000);
+      expect(next.salaryShownOnly, isTrue);
+    });
+
+    test('flags likely scams on results', () async {
+      final controller = DiscoverController(
+        jsearch: FakeJSearchClient([
+          paid('ok', null),
+          JobListing(
+            id: 'scam',
+            title: 'Online Encoder',
+            company: 'Quick Hire',
+            source: 'Facebook',
+            applyUrl: 'https://example.com/scam',
+            description: 'Pay the registration fee via GCash to start.',
+          ),
+        ]),
+        jooble: JoobleClient(apiKey: ''),
+        profiles: FakeCareerProfileRepository(),
+      );
+      await controller.search('encoder');
+
+      final scam = controller.results!.firstWhere(
+        (r) => r.listing.id == 'scam',
+      );
+      expect(scam.scam.risk, ScamRisk.high);
+      expect(
+        controller.results!
+            .firstWhere((r) => r.listing.id == 'ok')
+            .scam
+            .isFlagged,
+        isFalse,
+      );
+    });
   });
 }

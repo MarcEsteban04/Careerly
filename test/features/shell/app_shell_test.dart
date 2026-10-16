@@ -9,6 +9,7 @@ import 'package:careerly/features/applications/data/job_application.dart';
 import 'package:careerly/core/ai/ai_chain.dart';
 import 'package:careerly/features/agenda/data/agenda_event.dart';
 import 'package:careerly/features/applications/data/application_event.dart';
+import 'package:careerly/features/discover/data/job_listing.dart';
 import 'package:careerly/features/documents/data/career_document.dart';
 import 'package:careerly/features/profile/data/career_profile.dart';
 import 'package:careerly/features/resume/data/resume_insights.dart';
@@ -226,6 +227,57 @@ void main() {
       final backend = tester.getTopLeft(find.text('Backend Engineer')).dy;
       expect(designer, lessThan(backend));
       expect(find.textContaining('% MATCH'), findsNWidgets(2));
+    });
+
+    testWidgets('explains the match and warns about scams', (tester) async {
+      await pumpShell(
+        tester,
+        applications: FakeApplicationsRepository(),
+        discover: fakeDiscover(
+          listings: [
+            ...sampleListings,
+            const JobListing(
+              id: 'scam',
+              title: 'Online Encoder',
+              company: 'Quick Hire',
+              source: 'Facebook',
+              applyUrl: 'https://example.com/scam',
+              description: 'Pay the registration fee via GCash to start.',
+            ),
+          ],
+          profile: const CareerProfile(
+            targetRoles: ['UI Designer'],
+            skills: ['Figma'],
+          ),
+        ),
+      );
+      await openTab(tester, 'Jobs');
+      await tester.tap(find.text('Discover'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Search "UI Designer"'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Possible scam'), findsOneWidget);
+      expect(find.textContaining('Fits “UI Designer”'), findsOneWidget);
+
+      await tester.tap(find.text('UI/UX Designer'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Match'));
+      await tester.pumpAndSettle();
+      expect(find.text('Role'), findsOneWidget);
+      expect(find.text('45 / 45'), findsOneWidget);
+      expect(find.text('Work setup'), findsOneWidget);
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+
+      await Scrollable.ensureVisible(
+        tester.element(find.text('Online Encoder')),
+        alignment: 0.4,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Online Encoder'));
+      await tester.pumpAndSettle();
+      expect(find.text('This post has signs of a scam'), findsOneWidget);
     });
 
     testWidgets('searches a country abroad', (tester) async {
@@ -482,6 +534,11 @@ void main() {
     testWidgets('swiping hides a job, with undo', (tester) async {
       final preferences = await searchDesigner(tester);
 
+      await Scrollable.ensureVisible(
+        tester.element(find.text('Backend Engineer')),
+        alignment: 0.4,
+      );
+      await tester.pumpAndSettle();
       await tester.drag(find.text('Backend Engineer'), const Offset(-500, 0));
       await tester.pumpAndSettle();
 

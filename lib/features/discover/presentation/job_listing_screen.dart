@@ -8,7 +8,9 @@ import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/segmented_tabs.dart';
 import '../../../core/widgets/tag_pill.dart';
 import '../data/discover_controller.dart';
+import '../data/job_matcher.dart';
 import 'widgets/company_logo.dart';
+import 'widgets/match_breakdown.dart';
 import 'widgets/match_style.dart';
 
 /// Full job posting: description, qualifications and why it matches, with
@@ -23,10 +25,14 @@ class JobListingScreen extends StatefulWidget {
     required this.onTailorResume,
     required this.onApply,
     required this.onNotInterested,
+    this.profileYears,
   });
 
   final RankedListing ranked;
   final bool isSaved;
+
+  /// Years of experience on the profile, to compare with what the post asks.
+  final int? profileYears;
 
   /// Saves the job as a tracked application; resolves to true on success.
   final Future<bool> Function() onSave;
@@ -200,7 +206,8 @@ class _JobListingScreenState extends State<JobListingScreen> {
                     children: [
                       if (job.employmentType != null)
                         TagPill(label: job.employmentType!),
-                      if (job.isRemote) const TagPill(label: 'Remote'),
+                      if (JobMatcher.looksRemote(job))
+                        const TagPill(label: 'Remote'),
                       if (job.salary != null) TagPill(label: job.salary!),
                       TagPill(label: 'via ${job.source}'),
                       if (job.postedAt != null || job.postedLabel != null)
@@ -209,6 +216,10 @@ class _JobListingScreenState extends State<JobListingScreen> {
                         ),
                     ],
                   ),
+                  if (widget.ranked.scam.isFlagged) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    ScamBanner(check: widget.ranked.scam),
+                  ],
                   const SizedBox(height: AppSpacing.lg),
                   SegmentedTabs(
                     labels: const ['Description', 'Requirements', 'Match'],
@@ -379,11 +390,8 @@ class _JobListingScreenState extends State<JobListingScreen> {
             ),
           ],
         ),
-        const SizedBox(height: AppSpacing.md),
-        if (match.reasons.isEmpty)
-          _muted(theme, "It doesn't mention your target roles or skills.")
-        else
-          for (final reason in match.reasons) _Bullet(reason, check: true),
+        const SizedBox(height: AppSpacing.lg),
+        MatchBreakdown(match: match, profileYears: widget.profileYears),
         const SizedBox(height: AppSpacing.md),
         OutlinedButton.icon(
           onPressed: widget.onTailorResume,
@@ -402,10 +410,9 @@ class _JobListingScreenState extends State<JobListingScreen> {
 }
 
 class _Bullet extends StatelessWidget {
-  const _Bullet(this.text, {this.check = false});
+  const _Bullet(this.text);
 
   final String text;
-  final bool check;
 
   @override
   Widget build(BuildContext context) {
@@ -417,24 +424,15 @@ class _Bullet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: check
-                ? Icon(
-                    Icons.check_circle_rounded,
-                    size: 18,
-                    color: theme.colorScheme.primary,
-                  )
-                : Padding(
-                    padding: const EdgeInsets.fromLTRB(6, 6, 6, 0),
-                    child: Container(
-                      width: 5,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
+            padding: const EdgeInsets.fromLTRB(6, 8, 6, 0),
+            child: Container(
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.onSurfaceVariant,
+                shape: BoxShape.circle,
+              ),
+            ),
           ),
           const SizedBox(width: AppSpacing.xs),
           Expanded(

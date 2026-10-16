@@ -6,7 +6,7 @@ import 'package:careerly/features/discover/data/discover_controller.dart';
 import 'package:careerly/features/discover/data/job_search_query.dart';
 import 'package:careerly/features/discover/data/jooble_client.dart';
 import 'package:careerly/features/discover/data/jsearch_client.dart';
-import 'package:careerly/features/discover/data/search_scope_store.dart';
+import 'package:careerly/features/discover/data/discover_settings_store.dart';
 import 'package:careerly/features/profile/data/career_profile.dart';
 
 import '../shell/shell_test_utils.dart';
@@ -64,13 +64,13 @@ void main() {
 
     DiscoverController controller({
       CareerProfile profile = const CareerProfile(),
-      SearchScopeStore? store,
+      DiscoverSettingsStore? store,
     }) =>
         DiscoverController(
           jsearch: FakeJSearchClient(),
           jooble: JoobleClient(apiKey: ''),
           profiles: FakeCareerProfileRepository(profile),
-          scopeStore: store,
+          settings: store,
         );
 
     test('starts on remote for a remote-minded profile', () {
@@ -84,7 +84,7 @@ void main() {
     });
 
     test('is remembered for next time', () async {
-      final store = SearchScopeStore();
+      final store = DiscoverSettingsStore();
       controller(store: store).setScope(SearchScope.abroad(singapore));
       await pumpEventQueue();
 
