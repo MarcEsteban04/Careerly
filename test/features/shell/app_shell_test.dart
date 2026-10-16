@@ -125,6 +125,24 @@ void main() {
       expect(find.text('Save application'), findsOneWidget);
     });
 
+    testWidgets('+ on Studio offers what to create', (tester) async {
+      await pumpWithSample(tester);
+      await openTab(tester, 'Studio');
+
+      await tester.tap(find.byTooltip('Create'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Create'), findsOneWidget);
+      expect(find.text('Enhance resume'), findsWidgets);
+      expect(find.text('Upload your resume'), findsOneWidget);
+      // It asks first instead of jumping into a cover letter.
+      expect(find.text('Write a cover letter'), findsNothing);
+
+      await tester.tap(find.text('Cover letter').last);
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Back'), findsOneWidget);
+    });
+
     testWidgets('+ on Home offers what to add', (tester) async {
       await pumpWithSample(tester);
 

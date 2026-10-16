@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/ai/ai_chain.dart';
 import '../../../core/ai/providers.dart';
 import '../../../core/config/env.dart';
+import '../../../core/theme/app_accents.dart';
 import '../../../core/utils/error_message.dart';
 import '../../../core/widgets/island_toast.dart';
 import '../../agenda/data/agenda_event.dart';
@@ -1397,8 +1398,42 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       case _Tab.goals:
         await _addGoal();
       case _Tab.studio:
-        _writeCoverLetter();
+        await _onStudioAdd();
     }
+  }
+
+  /// Studio's "+": what can be created there, plus a new resume upload.
+  Future<void> _onStudioAdd() async {
+    const creates = [
+      StudioTool.enhanceResume,
+      StudioTool.coverLetter,
+      StudioTool.interviewPrep,
+      StudioTool.message,
+    ];
+    final run = await showAddSheet<Future<void> Function()>(
+      context,
+      title: 'Create',
+      options: [
+        for (final tool in creates)
+          AddOption(
+            value: () => _openStudioTool(tool),
+            icon: tool.icon,
+            accent: tool.accent,
+            title: tool.label,
+            subtitle: tool.hint,
+          ),
+        AddOption(
+          value: _editCareerProfile,
+          icon: Icons.upload_file_rounded,
+          accent: Accent.emerald,
+          title: _discover.profile.resume == null
+              ? 'Upload your resume'
+              : 'Upload a new resume',
+          subtitle: 'A PDF that AI reads to tailor everything to you',
+        ),
+      ],
+    );
+    if (mounted) await run?.call();
   }
 
   String get _addTooltip => switch (_tab) {
@@ -1406,7 +1441,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _Tab.jobs => 'New application',
         _Tab.agenda => 'New interview or reminder',
         _Tab.goals => 'New goal',
-        _Tab.studio => 'New cover letter',
+        _Tab.studio => 'Create',
       };
 
   /// Reviews applications with no news for weeks.
