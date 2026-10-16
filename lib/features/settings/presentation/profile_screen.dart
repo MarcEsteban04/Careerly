@@ -14,8 +14,10 @@ import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/stat_tile.dart';
 import '../../../core/widgets/user_avatar.dart';
+import '../../apply/data/answer_library.dart';
 import '../../apply/data/applicant_details.dart';
 import '../../apply/presentation/applicant_details_sheet.dart';
+import '../../apply/presentation/saved_answers_screen.dart';
 import '../../auth/data/app_lock_repository.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../discover/data/discover_controller.dart';
@@ -40,10 +42,14 @@ class ProfileScreen extends StatelessWidget {
     required this.avatars,
     required this.onAvatarChanged,
     required this.applicantDetails,
+    required this.answerLibrary,
   });
 
   /// The extra details used to fill application forms.
   final ApplicantDetailsStore applicantDetails;
+
+  /// Answers she approved on earlier forms.
+  final AnswerLibrary answerLibrary;
 
   final AuthRepository authRepository;
   final AppLockRepository appLock;
@@ -109,6 +115,8 @@ class ProfileScreen extends StatelessWidget {
                       const SizedBox(height: AppSpacing.xl),
                       const SectionHeader(title: 'Application details'),
                       _ApplicantDetailsCard(store: applicantDetails),
+                      const SizedBox(height: AppSpacing.sm),
+                      _SavedAnswersCard(library: answerLibrary),
                       const SizedBox(height: AppSpacing.xl),
                       const SectionHeader(title: 'Notifications'),
                       _NotificationsCard(
@@ -989,6 +997,83 @@ class _ApplicantDetailsCardState extends State<_ApplicantDetailsCard> {
                     Text(
                       'Phone, address, links and school, used by Fill with '
                       'Careerly. Stays on this phone.',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// How many form answers Careerly remembers; opens them to edit.
+class _SavedAnswersCard extends StatefulWidget {
+  const _SavedAnswersCard({required this.library});
+
+  final AnswerLibrary library;
+
+  @override
+  State<_SavedAnswersCard> createState() => _SavedAnswersCardState();
+}
+
+class _SavedAnswersCardState extends State<_SavedAnswersCard> {
+  late Future<List<SavedAnswer>> _answers = widget.library.load();
+
+  Future<void> _open() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SavedAnswersScreen(library: widget.library),
+      ),
+    );
+    if (mounted) {
+      setState(() {
+        _answers = widget.library.load();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return FutureBuilder<List<SavedAnswer>>(
+      future: _answers,
+      builder: (context, snapshot) {
+        final count = snapshot.data?.length ?? 0;
+        return AppCard(
+          onTap: _open,
+          child: Row(
+            children: [
+              const IconBadge(
+                icon: Icons.bookmark_border_rounded,
+                accent: Accent.violet,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      count == 0
+                          ? 'Saved answers'
+                          : count == 1
+                              ? '1 saved answer'
+                              : '$count saved answers',
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      'Your answers to form questions, reused next time.',
                       style: theme.textTheme.bodySmall
                           ?.copyWith(color: colorScheme.onSurfaceVariant),
                     ),

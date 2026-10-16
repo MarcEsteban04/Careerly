@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -6,13 +7,20 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
+import '../../../core/theme/app_accents.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/bottom_action_bar.dart';
 import '../../../core/widgets/circle_icon_button.dart';
+import '../../../core/widgets/icon_badge.dart';
+import '../../../core/widgets/primary_button.dart';
 import '../../studio/data/career_writer.dart';
 import '../../studio/presentation/writer_error_message.dart';
+import '../data/answer_library.dart';
+import '../data/form_field_info.dart';
 import '../data/form_filler.dart';
 import '../data/form_scripts.dart';
+import '../data/submission_check.dart';
 import 'fill_review_sheet.dart';
 
 /// How the application page was left.
@@ -22,6 +30,9 @@ enum ApplyPageExit {
 
   /// Handed to the phone's browser; Careerly asks when she comes back.
   openedExternally,
+
+  /// She confirmed the page showed her application went through.
+  submitted,
 }
 
 /// A file Careerly can attach when the page asks for one.
@@ -46,6 +57,8 @@ class ApplyBrowserScreen extends StatefulWidget {
     required this.openExternally,
     this.companyBrief,
     this.resume,
+    this.savedAnswers,
+    this.onAnswersUsed,
   });
 
   final Uri url;
@@ -63,6 +76,12 @@ class ApplyBrowserScreen extends StatefulWidget {
   /// The resume chosen in the application kit, ready to attach.
   final ApplyAttachment? resume;
 
+  /// Answers she approved on earlier forms.
+  final Future<List<SavedAnswer>> Function()? savedAnswers;
+
+  /// Called with the answers she approved, to remember them.
+  final Future<void> Function(List<FieldAnswer> answers)? onAnswersUsed;
+
   @override
   State<ApplyBrowserScreen> createState() => _ApplyBrowserScreenState();
 }
@@ -71,6 +90,10 @@ class _ApplyBrowserScreenState extends State<ApplyBrowserScreen> {
   late final WebViewController _controller;
   int _progress = 0;
   String? _status;
+
+  /// The page looks like an application confirmation.
+  bool _looksSubmitted = false;
+  bool _submittedDismissed = false;
   late String _host = widget.url.host;
 
   /// Hosts of the hiring systems that embed their forms in a frame.
@@ -108,6 +131,7 @@ class _ApplyBrowserScreenState extends State<ApplyBrowserScreen> {
           },
           onPageFinished: (url) {
             _controller.runJavaScript(FormScripts.keepInView);
+            _checkSubmitted(url);
             final host = Uri.tryParse(url)?.host;
             if (mounted && host != null && host.isNotEmpty) {
               setState(() => _host = host);
@@ -188,6 +212,28 @@ class _ApplyBrowserScreenState extends State<ApplyBrowserScreen> {
     return const [];
   }
 
+  /// Watches for a "Thank you for applying" page after each load.
+  Future<void> _checkSubmitted(String url) async {
+    if (_looksSubmitted || _submittedDismissed) return;
+    try {
+      final raw = await _controller.runJavaScriptReturningResult(
+        "document.body ? document.body.innerText.slice(0, 4000) : ''",
+      );
+      var text = '$raw';
+      // The web view may hand the string back still JSON-quoted.
+      if (text.startsWith('"')) {
+        try {
+          text = jsonDecode(text) as String;
+        } catch (_) {}
+      }
+      if (mounted && SubmissionCheck.looksSubmitted(text, url)) {
+        setState(() => _looksSubmitted = true);
+      }
+    } catch (e) {
+      debugPrint('Confirmation check failed: $e');
+    }
+  }
+
   Future<void> _fill() async {
     if (_busy) return;
     setState(() => _status = 'Reading the form…');
@@ -213,11 +259,13 @@ class _ApplyBrowserScreenState extends State<ApplyBrowserScreen> {
       setState(() => _status = 'Drafting answers…');
       final applicant = await widget.loadApplicant();
       final brief = await widget.companyBrief?.call();
+      final saved = await widget.savedAnswers?.call() ?? const <SavedAnswer>[];
       final answers = await widget.filler.answer(
         fields: scan.fields,
         applicant: applicant,
         job: widget.job,
         companyBrief: brief,
+        saved: saved,
       );
       if (!mounted) return;
       setState(() => _status = null);
@@ -247,6 +295,7 @@ class _ApplyBrowserScreenState extends State<ApplyBrowserScreen> {
         FormScripts.fill({for (final a in chosen) a.field.id: a.value}),
       );
       final count = filled is num ? filled.toInt() : int.tryParse('$filled') ?? 0;
+      if (count > 0) await widget.onAnswersUsed?.call(chosen);
       _showMessage(
         count == 0
             ? "Couldn't fill this form. Fill it in on the page."
@@ -400,7 +449,19 @@ class _ApplyBrowserScreenState extends State<ApplyBrowserScreen> {
             Expanded(child: WebViewWidget(controller: _controller)),
           ],
         ),
-        floatingActionButton: FloatingActionButton.extended(
+        bottomNavigationBar: _looksSubmitted
+            ? _SubmittedCard(
+                onMarkApplied: () =>
+                    Navigator.of(context).pop(ApplyPageExit.submitted),
+                onDismiss: () => setState(() {
+                  _looksSubmitted = false;
+                  _submittedDismissed = true;
+                }),
+              )
+            : null,
+        floatingActionButton: _looksSubmitted
+            ? null
+            : FloatingActionButton.extended(
           onPressed: _busy ? null : _fill,
           backgroundColor: AppColors.accent,
           foregroundColor: AppColors.ink,
@@ -415,6 +476,79 @@ class _ApplyBrowserScreenState extends State<ApplyBrowserScreen> {
               : const Icon(Icons.auto_awesome_rounded),
           label: Text(_status ?? 'Fill with Careerly'),
         ),
+      ),
+    );
+  }
+}
+
+/// Shown when the page looks like a confirmation: one tap to record it.
+class _SubmittedCard extends StatelessWidget {
+  const _SubmittedCard({required this.onMarkApplied, required this.onDismiss});
+
+  final VoidCallback onMarkApplied;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return BottomActionBar(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const IconBadge(
+                icon: Icons.celebration_outlined,
+                accent: Accent.emerald,
+                size: 40,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Looks like you applied!',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      "Careerly will track it and remind you to follow up in a week.",
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onDismiss,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                  ),
+                  child: const Text('Not yet'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                flex: 2,
+                child: PrimaryButton(
+                  label: 'Mark as applied',
+                  icon: Icons.check_rounded,
+                  onPressed: onMarkApplied,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -102,20 +102,30 @@ class FormFieldInfo {
   }
 }
 
+/// Where a proposed answer came from.
+enum AnswerSource {
+  /// Her saved application details or account.
+  details,
+
+  /// An answer she approved on an earlier form.
+  library,
+
+  /// Drafted by AI.
+  ai,
+}
+
 /// A proposed value for one field, and where it came from.
 class FieldAnswer {
   const FieldAnswer({
     required this.field,
     required this.value,
-    required this.fromAi,
+    required this.source,
   });
 
   final FormFieldInfo field;
   final String value;
-
-  /// Drafted by AI (rather than copied from her details).
-  final bool fromAi;
+  final AnswerSource source;
 
   FieldAnswer withValue(String value) =>
-      FieldAnswer(field: field, value: value, fromAi: fromAi);
+      FieldAnswer(field: field, value: value, source: source);
 }

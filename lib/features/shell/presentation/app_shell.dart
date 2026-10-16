@@ -22,12 +22,15 @@ import '../../applications/data/stale_applications.dart';
 import '../../applications/data/tracked_view.dart';
 import '../../applications/presentation/applications_screen.dart';
 import '../../applications/presentation/stale_applications_sheet.dart';
+import '../../apply/data/answer_library.dart';
 import '../../apply/data/applicant_details.dart';
+import '../../apply/data/application_email.dart';
 import '../../apply/data/form_filler.dart';
 import '../../apply/presentation/applicant_details_sheet.dart';
 import '../../apply/presentation/apply_browser_screen.dart';
 import '../../apply/presentation/apply_confirm_dialog.dart';
 import '../../apply/presentation/apply_kit_sheet.dart';
+import '../../apply/presentation/email_apply_screen.dart';
 import '../../auth/data/app_lock_repository.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../company_research/data/company_researcher.dart';
@@ -115,6 +118,7 @@ class AppShell extends StatefulWidget {
     this.negotiationCoach,
     this.formFiller,
     this.applicantDetails,
+    this.answerLibrary,
     this.applyPage,
     JobShareInbox? shareInbox,
     this.afterSignIn,
@@ -158,6 +162,7 @@ class AppShell extends StatefulWidget {
   final NegotiationCoach? negotiationCoach;
   final FormFiller? formFiller;
   final ApplicantDetailsStore? applicantDetails;
+  final AnswerLibrary? answerLibrary;
 
   /// Opens an application page; defaults to Careerly's own browser with
   /// form filling. Replaceable in tests, which can't host a web view.
@@ -256,6 +261,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   late final _applicantDetails =
       widget.applicantDetails ?? ApplicantDetailsStore();
   final _resumeDesigns = ResumeDesignStore();
+  late final _answerLibrary = widget.answerLibrary ?? AnswerLibrary();
 
   /// True while an application page is open in Careerly, so returning
   /// from a file picker doesn't ask "Did you apply?" too early.
@@ -711,15 +717,27 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     JobApplication? application,
     RankedListing? listing,
   }) async {
-    final result = await showApplyKitSheet(context, studio: _studio, job: job);
+    final uri = Uri.tryParse(applyUrl.trim());
+    final canOpenPage =
+        uri != null && (uri.scheme == 'http' || uri.scheme == 'https');
+    final email = ApplicationEmail.find(
+      description: job.description,
+      applyUrl: applyUrl,
+    );
+    final result = await showApplyKitSheet(
+      context,
+      studio: _studio,
+      job: job,
+      applyEmail: email,
+      canOpenPage: canOpenPage || email == null,
+    );
     if (!mounted || result == null) return;
 
     switch (result) {
       case WriteCoverLetterFirst():
         _writeCoverLetter(job);
       case OpenApplication(:final choice):
-        final uri = Uri.tryParse(applyUrl);
-        if (uri == null) {
+        if (!canOpenPage) {
           _showMessage("This job doesn't have a valid application link.");
           return;
         }
@@ -737,8 +755,46 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         } finally {
           _applyPageOpen = false;
         }
-        // From the phone's browser, the question waits until she's back.
-        if (exit == ApplyPageExit.closed) await _confirmPendingApply();
+        switch (exit) {
+          case ApplyPageExit.closed:
+            await _confirmPendingApply();
+          case ApplyPageExit.submitted:
+            // She saw the confirmation page: no need to ask.
+            await _confirmPendingApply(
+              answer: const ApplyConfirmation(followUp: true),
+            );
+          case ApplyPageExit.openedExternally:
+            // The question waits until she's back from her browser.
+            break;
+        }
+      case ApplyByEmail(:final choice):
+        _pendingApply = _PendingApply(
+          job: job,
+          application: application,
+          listing: listing,
+          choice: choice,
+        );
+        _applyPageOpen = true;
+        final bool? sent;
+        try {
+          sent = await _push<bool>(
+            EmailApplyScreen(
+              to: email!,
+              job: job,
+              writer: _messageWriter,
+              profile: _discover.profile,
+              senderName: widget.authRepository.currentUserName,
+              resume: _attachmentFor(choice.resumeDocumentId),
+            ),
+          );
+        } finally {
+          _applyPageOpen = false;
+        }
+        if (sent == true) {
+          await _confirmPendingApply();
+        } else {
+          _pendingApply = null;
+        }
     }
   }
 
@@ -760,6 +816,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           companyBrief: () async =>
               (await _companyResearcher.cached(job.company))?.summary,
           resume: _attachmentFor(choice.resumeDocumentId),
+          savedAnswers: _answerLibrary.load,
+          onAnswersUsed: (answers) =>
+              _answerLibrary.remember(answers, company: job.company),
         ),
       ),
     );
@@ -808,12 +867,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (saved != null) _showMessage('Application details saved');
   }
 
-  Future<void> _confirmPendingApply() async {
+  /// Records the pending application as applied, asking "Did you apply?"
+  /// unless [answer] already says so.
+  Future<void> _confirmPendingApply({ApplyConfirmation? answer}) async {
     final pending = _pendingApply;
     if (pending == null || !mounted) return;
     _pendingApply = null;
 
-    final answer = await showApplyConfirmDialog(
+    answer ??= await showApplyConfirmDialog(
       context,
       jobLabel: pending.job.label,
     );
@@ -971,6 +1032,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           avatars: _avatars,
           onAvatarChanged: () => setState(() {}),
           applicantDetails: _applicantDetails,
+          answerLibrary: _answerLibrary,
         ),
       ),
     );

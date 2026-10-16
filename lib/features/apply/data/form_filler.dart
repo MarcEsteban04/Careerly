@@ -6,6 +6,7 @@ import '../../../core/ai/citations.dart';
 import '../../../core/ai/json_extract.dart';
 import '../../profile/data/career_profile.dart';
 import '../../studio/data/career_writer.dart';
+import 'answer_library.dart';
 import 'applicant_details.dart';
 import 'form_field_info.dart';
 
@@ -40,7 +41,8 @@ class Applicant {
 }
 
 /// Proposes answers for an application form: obvious fields straight from
-/// the applicant's details, the rest drafted by AI (Gemini, then Groq, then
+/// the applicant's details, then answers she approved before, the rest
+/// drafted by AI (Gemini, then Groq, then
 /// OpenAI) from her resume and the job. Nothing is invented: unknown
 /// fields are left for her.
 class FormFiller {
@@ -58,6 +60,7 @@ class FormFiller {
     required Applicant applicant,
     required JobContext job,
     String? companyBrief,
+    List<SavedAnswer> saved = const [],
   }) async {
     final answers = <FieldAnswer>[];
     final open = <FormFieldInfo>[];
@@ -66,9 +69,26 @@ class FormFiller {
       if (field.currentValue.isNotEmpty && !field.kind.hasOptions) continue;
       final value = matchFromDetails(field, applicant);
       if (value != null) {
-        answers.add(FieldAnswer(field: field, value: value, fromAi: false));
+        answers.add(
+          FieldAnswer(field: field, value: value, source: AnswerSource.details),
+        );
       } else if (field.label.isNotEmpty || field.placeholder.isNotEmpty) {
-        open.add(field);
+        // An answer she approved before beats a fresh AI draft.
+        final previous =
+            AnswerLibrary.match(field, saved, company: job.company);
+        if (previous == null) {
+          open.add(field);
+        } else {
+          answers.add(
+            FieldAnswer(
+              field: field,
+              value: field.kind.hasOptions
+                  ? field.optionFor(previous.answer)!
+                  : previous.answer,
+              source: AnswerSource.library,
+            ),
+          );
+        }
       }
     }
     if (open.isNotEmpty && ai.isConfigured) {
@@ -259,7 +279,7 @@ Return JSON: {"answers": [{"id": "<field id>", "value": "<answer or empty>"}]}''
         value = value.substring(0, field.maxLength!);
       }
       if (value.isEmpty) continue;
-      answers.add(FieldAnswer(field: field, value: value, fromAi: true));
+      answers.add(FieldAnswer(field: field, value: value, source: AnswerSource.ai));
     }
     return answers;
   }

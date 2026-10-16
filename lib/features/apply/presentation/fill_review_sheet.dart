@@ -75,7 +75,10 @@ class _FillReviewState extends State<_FillReview> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final count = _chosen.length;
-    final drafted = widget.answers.where((a) => a.fromAi).length;
+    final drafted =
+        widget.answers.where((a) => a.source == AnswerSource.ai).length;
+    final reused =
+        widget.answers.where((a) => a.source == AnswerSource.library).length;
 
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
@@ -102,6 +105,7 @@ class _FillReviewState extends State<_FillReview> {
                 Text(
                   [
                     '${widget.answers.length} answers ready',
+                    if (reused > 0) '$reused saved',
                     if (drafted > 0) '$drafted drafted by AI',
                     if (widget.leftForYou > 0) '${widget.leftForYou} left for you',
                   ].join(' · '),
@@ -234,22 +238,8 @@ class _AnswerTile extends StatelessWidget {
                         ?.copyWith(color: colorScheme.onSurfaceVariant),
                   ),
                 ),
-                if (answer.fromAi)
-                  Container(
-                    margin: const EdgeInsets.only(left: AppSpacing.xs),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Accent.teal.tintIn(theme.brightness),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      'AI draft',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: Accent.teal.colorIn(theme.brightness),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
+                if (answer.source != AnswerSource.details)
+                  _SourceBadge(source: answer.source),
                 Checkbox(
                   value: included,
                   semanticLabel: 'Fill "${answer.field.displayLabel}"',
@@ -289,6 +279,35 @@ class _AnswerTile extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "AI draft" or "Saved answer", so she knows what to read closely.
+class _SourceBadge extends StatelessWidget {
+  const _SourceBadge({required this.source});
+
+  final AnswerSource source;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = source == AnswerSource.ai ? Accent.teal : Accent.violet;
+
+    return Container(
+      margin: const EdgeInsets.only(left: AppSpacing.xs),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: accent.tintIn(theme.brightness),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        source == AnswerSource.ai ? 'AI draft' : 'Saved answer',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: accent.colorIn(theme.brightness),
+          fontWeight: FontWeight.w700,
         ),
       ),
     );

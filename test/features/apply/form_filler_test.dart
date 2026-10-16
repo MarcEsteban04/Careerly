@@ -75,11 +75,11 @@ void main() {
     expect(byId['f3']?.value, '0917 123 4567');
     expect(byId['f4']?.value, 'linkedin.com/in/princess');
     expect(byId['f5']?.value, '2003-05-12');
-    expect(byId['f0']?.fromAi, isFalse);
+    expect(byId['f0']?.source, AnswerSource.details);
     // Matched to the exact option text, citations stripped, unknowns left.
     expect(byId['f6']?.value, "Bachelor's degree");
     expect(byId['f7']?.value, 'I build React apps for clients.');
-    expect(byId['f7']?.fromAi, isTrue);
+    expect(byId['f7']?.source, AnswerSource.ai);
     expect(byId.containsKey('f8'), isFalse);
     expect(answers.map((a) => a.field.id), ['f0', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7']);
 

@@ -13,8 +13,8 @@ void main() {
     label: 'Why Acme?',
   );
   const answers = [
-    FieldAnswer(field: email, value: 'princess@example.com', fromAi: false),
-    FieldAnswer(field: why, value: 'I love your product.', fromAi: true),
+    FieldAnswer(field: email, value: 'princess@example.com', source: AnswerSource.details),
+    FieldAnswer(field: why, value: 'I love your product.', source: AnswerSource.ai),
   ];
 
   testWidgets('edits and leaves out answers before filling', (tester) async {

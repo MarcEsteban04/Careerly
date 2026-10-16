@@ -462,4 +462,54 @@ void main() {
       expect(find.byTooltip('Refresh research'), findsOneWidget);
     });
   });
+
+  group('apply by email', () {
+    testWidgets('drafts the application email for a mailto: job', (
+      tester,
+    ) async {
+      final day = DateTime(2026, 10, 10);
+      final ai = FakeAiProvider(
+        'Gemini',
+        reply: '{"subject": "Application: Web Developer", '
+            '"body": "Hi Hiring Team,\\n\\nPlease find my resume attached."}',
+      );
+      await pumpShell(
+        tester,
+        applications: FakeApplicationsRepository([
+          JobApplication(
+            id: 'm1',
+            company: 'Acme',
+            role: 'Web Developer',
+            status: ApplicationStatus.saved,
+            jobUrl: 'mailto:hr@acme.ph',
+            createdAt: day,
+            updatedAt: day,
+          ),
+        ]),
+        messageWriter: MessageWriter(AiChain([ai])),
+      );
+
+      await tapVisible(tester, find.text('Web Developer'));
+      await tester.tap(find.text('Apply'));
+      await tester.pumpAndSettle();
+
+      // No web page to open: emailing is the way to apply.
+      expect(find.text('Apply by email'), findsOneWidget);
+      expect(find.text('Open application page'), findsNothing);
+      await tapVisible(tester, find.text('Email your application'));
+
+      expect(find.text('hr@acme.ph'), findsOneWidget);
+      await tester.tap(find.text('Write my email'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Application: Web Developer'), findsOneWidget);
+      expect(find.text('Send'), findsOneWidget);
+      expect(ai.requests.single.prompt, contains('Apply for the job by email'));
+
+      // Leaving without sending doesn't ask "Did you apply?".
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      expect(find.text('Did you apply?'), findsNothing);
+    });
+  });
 }

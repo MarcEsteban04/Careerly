@@ -34,19 +34,33 @@ class WriteCoverLetterFirst extends ApplyKitResult {
   const WriteCoverLetterFirst();
 }
 
+/// Email the application to the address in the post, with these
+/// documents.
+class ApplyByEmail extends ApplyKitResult {
+  const ApplyByEmail(this.choice);
+  final ApplyKitChoice choice;
+}
+
 /// The "application kit": pick the resume and cover letter to send, get
 /// them as PDF or text, then open the application page.
 Future<ApplyKitResult?> showApplyKitSheet(
   BuildContext context, {
   required StudioController studio,
   required JobContext job,
+  String? applyEmail,
+  bool canOpenPage = true,
 }) {
   return showModalBottomSheet<ApplyKitResult>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
     showDragHandle: true,
-    builder: (_) => _ApplyKit(studio: studio, job: job),
+    builder: (_) => _ApplyKit(
+      studio: studio,
+      job: job,
+      applyEmail: applyEmail,
+      canOpenPage: canOpenPage,
+    ),
   );
 }
 
@@ -59,10 +73,21 @@ class _ResumeOption {
 }
 
 class _ApplyKit extends StatefulWidget {
-  const _ApplyKit({required this.studio, required this.job});
+  const _ApplyKit({
+    required this.studio,
+    required this.job,
+    required this.applyEmail,
+    required this.canOpenPage,
+  });
 
   final StudioController studio;
   final JobContext job;
+
+  /// Where the post asks for applications to be emailed, if anywhere.
+  final String? applyEmail;
+
+  /// False when the job has no usable application link.
+  final bool canOpenPage;
 
   @override
   State<_ApplyKit> createState() => _ApplyKitState();
@@ -74,6 +99,11 @@ class _ApplyKitState extends State<_ApplyKit> {
   late String? _resumeId = _resumes.isEmpty ? null : _resumes.first.id;
   late String? _letterId = _letters.isEmpty ? null : _letters.first.id;
   String? _busyId;
+
+  ApplyKitChoice get _choice => ApplyKitChoice(
+        resumeDocumentId: _resumeId,
+        coverLetterDocumentId: _letterId,
+      );
 
   List<_ResumeOption> _resumeOptions() {
     final studio = widget.studio;
@@ -228,25 +258,41 @@ class _ApplyKitState extends State<_ApplyKit> {
             ),
           ),
           const SizedBox(height: AppSpacing.md),
-          _StepLabel(number: 3, text: 'Apply on their site'),
+          _StepLabel(
+            number: 3,
+            text: widget.canOpenPage ? 'Apply on their site' : 'Apply by email',
+          ),
           _Hint(
-            'The page opens in Careerly: tap Fill with Careerly to fill the '
-            'form, and attach this resume when it asks for a file. When '
-            "you're done, Careerly asks if you applied and tracks it.",
+            widget.canOpenPage
+                ? 'The page opens in Careerly: tap Fill with Careerly to fill '
+                    'the form, and attach this resume when it asks for a file. '
+                    "When you're done, Careerly asks if you applied and tracks "
+                    'it.'
+                : 'This post asks for applications by email. Careerly drafts '
+                    'the email and attaches this resume as a PDF.',
           ),
           const SizedBox(height: AppSpacing.md),
-          PrimaryButton(
-            label: 'Open application page',
-            icon: Icons.arrow_outward_rounded,
-            onPressed: () => Navigator.of(context).pop(
-              OpenApplication(
-                ApplyKitChoice(
-                  resumeDocumentId: _resumeId,
-                  coverLetterDocumentId: _letterId,
-                ),
-              ),
+          if (widget.canOpenPage)
+            PrimaryButton(
+              label: 'Open application page',
+              icon: Icons.arrow_outward_rounded,
+              onPressed: () => Navigator.of(context).pop(OpenApplication(_choice)),
             ),
-          ),
+          if (widget.applyEmail != null) ...[
+            if (widget.canOpenPage) const SizedBox(height: AppSpacing.sm),
+            if (widget.canOpenPage)
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).pop(ApplyByEmail(_choice)),
+                icon: const Icon(Icons.mail_outline_rounded),
+                label: Text('Email it to ${widget.applyEmail}'),
+              )
+            else
+              PrimaryButton(
+                label: 'Email your application',
+                icon: Icons.mail_outline_rounded,
+                onPressed: () => Navigator.of(context).pop(ApplyByEmail(_choice)),
+              ),
+          ],
         ],
       ),
     );

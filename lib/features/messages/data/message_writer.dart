@@ -13,7 +13,8 @@ enum MessageKind {
   acceptOffer('Accept offer', 'Say yes and confirm next steps'),
   declineOffer('Decline offer', 'Say no and keep the door open'),
   askFeedback('Ask for feedback', 'After a rejection, to learn from it'),
-  withdraw('Withdraw', 'Step out of the process gracefully');
+  withdraw('Withdraw', 'Step out of the process gracefully'),
+  application('Application', 'Send your CV to a hiring email');
 
   const MessageKind(this.label, this.when);
 
@@ -71,6 +72,10 @@ class MessageWriter {
         MessageKind.withdraw =>
           'Withdraw from the hiring process: thank them, withdraw clearly '
               'and politely, no lengthy reasons.',
+        MessageKind.application =>
+          'Apply for the job by email: name the role, give two or three '
+              'specific strengths from the background that fit it, say the '
+              'resume is attached, and invite them to talk.',
       };
 
   Future<DraftMessage> write({
