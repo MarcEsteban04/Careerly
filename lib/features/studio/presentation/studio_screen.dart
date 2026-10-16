@@ -14,6 +14,7 @@ import '../../documents/data/career_document.dart';
 import '../../resume/data/resume_insights.dart';
 import '../data/resume_versions.dart';
 import '../data/studio_controller.dart';
+import 'studio_tool.dart';
 import 'widgets/resume_versions_list.dart';
 
 /// Studio tab: the uploaded resume, AI tools, and saved documents.
@@ -22,9 +23,7 @@ class StudioScreen extends StatelessWidget {
     super.key,
     required this.studio,
     required this.onUploadResume,
-    required this.onEnhanceResume,
-    required this.onWriteCoverLetter,
-    required this.onInterviewPrep,
+    required this.onTool,
     required this.onOpenDocument,
     required this.applications,
     required this.onAtsCheck,
@@ -32,9 +31,8 @@ class StudioScreen extends StatelessWidget {
 
   final StudioController studio;
   final Future<void> Function() onUploadResume;
-  final VoidCallback onEnhanceResume;
-  final VoidCallback onWriteCoverLetter;
-  final VoidCallback onInterviewPrep;
+  /// Opens one of the tools in the grid.
+  final ValueChanged<StudioTool> onTool;
   final ValueChanged<CareerDocument> onOpenDocument;
 
   /// Tracked applications, for each resume version's results.
@@ -161,7 +159,7 @@ class StudioScreen extends StatelessWidget {
 
         return TabPage(
           title: 'Studio',
-          subtitle: 'AI resumes, cover letters and interview prep',
+          subtitle: 'AI tools for every step of your search',
           onRefresh: studio.load,
           heroChild: _ResumeCard(
             resume: resume,
@@ -169,42 +167,8 @@ class StudioScreen extends StatelessWidget {
             onUpload: onUploadResume,
           ),
           children: [
-            IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: _ToolCard(
-                      icon: Icons.auto_fix_high_rounded,
-                      title: 'Enhance resume',
-                      subtitle: 'Stronger bullets for a target role',
-                      accent: Accent.violet,
-                      onTap: onEnhanceResume,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: _ToolCard(
-                      icon: Icons.edit_note_rounded,
-                      title: 'Cover letter',
-                      subtitle: 'Tailored to a specific job',
-                      accent: Accent.blue,
-                      onTap: onWriteCoverLetter,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: _ToolCard(
-                      icon: Icons.record_voice_over_outlined,
-                      title: 'Interview prep',
-                      subtitle: 'Practice questions for a job you track',
-                      accent: Accent.amber,
-                      onTap: onInterviewPrep,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            const SectionHeader(title: 'Tools'),
+            _ToolGrid(onTool: onTool),
             const SizedBox(height: AppSpacing.xl),
             if (items == null && studio.error == null)
               const Center(child: CircularProgressIndicator())
@@ -346,19 +310,46 @@ class _ResumeCard extends StatelessWidget {
   }
 }
 
-class _ToolCard extends StatelessWidget {
-  const _ToolCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.accent,
-    required this.onTap,
-  });
+/// Every Studio tool, three to a row.
+class _ToolGrid extends StatelessWidget {
+  const _ToolGrid({required this.onTool});
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Accent accent;
+  final ValueChanged<StudioTool> onTool;
+
+  static const _perRow = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    const tools = StudioTool.values;
+    return Column(
+      children: [
+        for (var start = 0; start < tools.length; start += _perRow) ...[
+          if (start > 0) const SizedBox(height: AppSpacing.sm),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = start; i < start + _perRow; i++) ...[
+                  if (i > start) const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: i < tools.length
+                        ? _ToolCard(tool: tools[i], onTap: () => onTool(tools[i]))
+                        : const SizedBox(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ToolCard extends StatelessWidget {
+  const _ToolCard({required this.tool, required this.onTap});
+
+  final StudioTool tool;
   final VoidCallback onTap;
 
   @override
@@ -366,21 +357,21 @@ class _ToolCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Tooltip(
-      message: subtitle,
+      message: tool.hint,
       child: AppCard(
         onTap: onTap,
         padding: const EdgeInsets.all(AppSpacing.sm),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            IconBadge(icon: icon, accent: accent, size: 40),
+            IconBadge(icon: tool.icon, accent: tool.accent, size: 38),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              title,
+              tool.label,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w700, height: 1.25),
+                  ?.copyWith(fontWeight: FontWeight.w600, height: 1.25),
             ),
           ],
         ),

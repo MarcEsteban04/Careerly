@@ -400,6 +400,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('PDF'));
       await tester.pumpAndSettle();
+      expect(find.text('Design'), findsOneWidget);
       expect(find.text('View PDF'), findsOneWidget);
       expect(find.text('Download PDF'), findsOneWidget);
       await tester.tapAt(const Offset(20, 20));
@@ -408,6 +409,45 @@ void main() {
       await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
       expect(find.text('Resume · UI Designer'), findsOneWidget);
+    });
+
+    testWidgets('every tool is in the grid; job tools ask which job', (
+      tester,
+    ) async {
+      final sample = sampleDashboardData(DateTime.now());
+      await pumpShell(
+        tester,
+        applications: FakeApplicationsRepository(sample.applications),
+      );
+      await openTab(tester, 'Studio');
+
+      for (final label in [
+        'Enhance resume',
+        'Cover letter',
+        'Interview prep',
+        'Mock interview',
+        'ATS check',
+        'Resume design',
+        'Message',
+        'Negotiate',
+        'Company research',
+      ]) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+
+      await tapVisible(tester, find.text('Negotiate'));
+      expect(find.text('Negotiate which offer?'), findsOneWidget);
+      await tapVisible(tester, find.text('Design Engineer'));
+      expect(find.text('Salary offered'), findsOneWidget);
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+
+      // No resume yet: the design picker explains what's needed.
+      await tapVisible(tester, find.text('Resume design'));
+      expect(
+        find.text('Upload your resume first, then pick its design.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('resume versions show results and run an ATS check', (

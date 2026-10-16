@@ -6,6 +6,7 @@ import '../../../core/widgets/primary_button.dart';
 import '../../documents/data/career_document.dart';
 import '../../documents/data/document_markup.dart';
 import '../../documents/data/document_pdf.dart';
+import '../../documents/data/resume_design.dart';
 import '../../studio/data/career_writer.dart';
 import '../../studio/data/studio_controller.dart';
 
@@ -113,9 +114,15 @@ class _ApplyKitState extends State<_ApplyKit> {
     setState(() => _busyId = id);
     try {
       final content = await _content(id);
+      final isResume = _resumes.any((r) => r.id == id);
       await DocumentPdf.share(
         title: title,
-        bytes: await DocumentPdf.build(content),
+        bytes: await DocumentPdf.build(
+          content,
+          design: isResume
+              ? await ResumeDesignStore().load()
+              : ResumeDesign.classic,
+        ),
       );
     } catch (_) {
       _toast("Couldn't create the PDF.");

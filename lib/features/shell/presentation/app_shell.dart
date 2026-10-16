@@ -31,6 +31,7 @@ import '../../apply/presentation/apply_kit_sheet.dart';
 import '../../auth/data/app_lock_repository.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../company_research/data/company_researcher.dart';
+import '../../company_research/presentation/company_research_card.dart';
 import '../../dashboard/presentation/dashboard_screen.dart';
 import '../../discover/data/ai_job_search_client.dart';
 import '../../discover/data/discover_controller.dart';
@@ -42,6 +43,8 @@ import '../../discover/presentation/job_listing_screen.dart';
 import '../../documents/data/career_document.dart';
 import '../../documents/data/document_markup.dart';
 import '../../documents/data/document_pdf.dart';
+import '../../documents/data/resume_design.dart';
+import '../../documents/presentation/resume_design_screen.dart';
 import '../../documents/data/documents_repository.dart';
 import '../../goals/data/goal.dart';
 import '../../goals/data/goals_repository.dart';
@@ -81,6 +84,7 @@ import '../../studio/presentation/cover_letter_screen.dart';
 import '../../studio/presentation/document_screen.dart';
 import '../../studio/presentation/resume_enhance_screen.dart';
 import '../../studio/presentation/studio_screen.dart';
+import '../../studio/presentation/studio_tool.dart';
 import '../data/workspace_controller.dart';
 import 'widgets/floating_nav_bar.dart';
 import 'widgets/quick_add_sheet.dart';
@@ -251,6 +255,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   late final _formFiller = widget.formFiller ?? FormFiller(_ai);
   late final _applicantDetails =
       widget.applicantDetails ?? ApplicantDetailsStore();
+  final _resumeDesigns = ResumeDesignStore();
 
   /// True while an application page is open in Careerly, so returning
   /// from a file picker doesn't ask "Did you apply?" too early.
@@ -790,7 +795,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (doc == null || doc.kind != DocumentKind.resume) return null;
     return ApplyAttachment(
       fileName: DocumentPdf.fileNameFor(doc.title),
-      bytes: () => DocumentPdf.build(doc.content),
+      bytes: () async => DocumentPdf.build(
+        doc.content,
+        design: await _resumeDesigns.load(),
+      ),
     );
   }
 
@@ -1067,19 +1075,140 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   // Interview prep ------------------------------------------------------------
 
-  Future<void> _pickInterviewPrep() async {
+  /// Asks which tracked job a tool is for. Resolves to null (after saying
+  /// why) when there's no job to pick, or when she cancels.
+  Future<JobApplication?> _pickApplication({
+    required String title,
+    required String subtitle,
+    required String noJobsMessage,
+  }) async {
     final applications = _workspace.data?.applications ?? const [];
     if (applications.every((a) => a.status == ApplicationStatus.rejected)) {
-      _showMessage('Track a job first, then prepare for its interview here.');
-      return;
+      _showMessage(noJobsMessage);
+      return null;
     }
     final application = await showPickApplicationSheet(
       context,
       applications: applications,
+      title: title,
+      subtitle: subtitle,
+    );
+    return mounted ? application : null;
+  }
+
+  Future<void> _pickInterviewPrep() async {
+    final application = await _pickApplication(
       title: 'Prepare for which interview?',
       subtitle: 'Pick a job you track. Careerly tailors the questions to it.',
+      noJobsMessage: 'Track a job first, then prepare for its interview here.',
     );
-    if (application != null && mounted) _openInterviewPrep(application);
+    if (application != null) _openInterviewPrep(application);
+  }
+
+  /// Opens a Studio tool, asking which job first for the ones tied to one.
+  Future<void> _openStudioTool(StudioTool tool) async {
+    switch (tool) {
+      case StudioTool.enhanceResume:
+        _enhanceResume();
+      case StudioTool.coverLetter:
+        _writeCoverLetter();
+      case StudioTool.interviewPrep:
+        await _pickInterviewPrep();
+      case StudioTool.mockInterview:
+        final application = await _pickApplication(
+          title: 'Practice for which job?',
+          subtitle: 'The mock interview uses that job\'s likely questions.',
+          noJobsMessage: 'Track a job first, then practice its interview.',
+        );
+        if (application == null) return;
+        final prep = await _interviewPreps.fetch(application.id);
+        if (!mounted) return;
+        if (prep == null) {
+          // The questions come from the interview kit, so build it first.
+          _openInterviewPrep(application);
+          _showMessage('Build the interview kit first, then start the mock '
+              'interview from it.');
+        } else {
+          _push<void>(
+            MockInterviewScreen(
+              job: _contextForApplication(application),
+              prep: prep,
+              coach: _coach,
+              resumeText: _resumeTextIfAny,
+            ),
+          );
+        }
+      case StudioTool.atsCheck:
+        final application = await _pickApplication(
+          title: 'Check against which job?',
+          subtitle: 'The ATS check compares your resume with that job post.',
+          noJobsMessage: 'Track a job first, then check your resume against it.',
+        );
+        if (application != null) _openAts(_contextForApplication(application));
+      case StudioTool.resumeDesign:
+        await _openResumeDesign();
+      case StudioTool.message:
+        final application = await _pickApplication(
+          title: 'Write to which company?',
+          subtitle: 'Careerly suggests the message that fits where it stands.',
+          noJobsMessage: 'Track a job first, then write to the company here.',
+        );
+        if (application != null) _writeMessage(application);
+      case StudioTool.negotiate:
+        final application = await _pickApplication(
+          title: 'Negotiate which offer?',
+          subtitle: 'Careerly suggests a fair counter for that job.',
+          noJobsMessage: 'Track a job first, then plan your negotiation here.',
+        );
+        if (application != null) _negotiate(application);
+      case StudioTool.companyResearch:
+        final application = await _pickApplication(
+          title: 'Research which company?',
+          subtitle: 'An AI brief on the employer behind a job you track.',
+          noJobsMessage: 'Track a job first, then research its company here.',
+        );
+        if (application != null) _showCompanyResearch(application);
+    }
+  }
+
+  /// Previews her resume in each PDF design. Uses her latest Studio resume,
+  /// or the uploaded one.
+  Future<void> _openResumeDesign() async {
+    final latest = _studio.items
+        ?.where((d) => d.kind == DocumentKind.resume)
+        .firstOrNull;
+    String? content = latest?.content;
+    if (content == null) {
+      try {
+        content = await _studio.resumeText();
+      } catch (_) {
+        content = null;
+      }
+    }
+    if (!mounted) return;
+    if (content == null || content.trim().isEmpty) {
+      _showMessage('Upload your resume first, then pick its design.');
+      return;
+    }
+    await _push<ResumeDesign>(
+      ResumeDesignScreen(content: content, store: _resumeDesigns),
+    );
+  }
+
+  void _showCompanyResearch(JobApplication application) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        child: CompanyResearchCard(
+          researcher: _companyResearcher,
+          job: _contextForApplication(application),
+        ),
+      ),
+    );
   }
 
   void _openInterviewPrep(JobApplication application) {
@@ -1135,18 +1264,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   /// From Studio: check a version against a job she tracks.
   Future<void> _atsCheckVersion(ResumeVersion version) async {
-    final applications = _workspace.data?.applications ?? const [];
-    if (applications.every((a) => a.status == ApplicationStatus.rejected)) {
-      _showMessage('Track a job first, then check your resume against it.');
-      return;
-    }
-    final application = await showPickApplicationSheet(
-      context,
-      applications: applications,
+    final application = await _pickApplication(
       title: 'Check against which job?',
       subtitle: 'The ATS check compares your resume with that job post.',
+      noJobsMessage: 'Track a job first, then check your resume against it.',
     );
-    if (application != null && mounted) {
+    if (application != null) {
       _openAts(_contextForApplication(application), versionId: version.id);
     }
   }
@@ -1383,9 +1506,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             builder: (context, _) => StudioScreen(
               studio: _studio,
               onUploadResume: _editCareerProfile,
-              onEnhanceResume: _enhanceResume,
-              onWriteCoverLetter: _writeCoverLetter,
-              onInterviewPrep: _pickInterviewPrep,
+              onTool: _openStudioTool,
               onOpenDocument: _openDocument,
               applications: _workspace.data?.applications ?? const [],
               onAtsCheck: _atsCheckVersion,

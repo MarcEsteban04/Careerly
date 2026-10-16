@@ -14,6 +14,8 @@ import '../../../core/widgets/segmented_tabs.dart';
 import '../../documents/data/career_document.dart';
 import '../../documents/data/document_markup.dart';
 import '../../documents/data/document_pdf.dart';
+import '../../documents/data/resume_design.dart';
+import '../../documents/presentation/resume_design_screen.dart';
 import '../../documents/presentation/pdf_preview_screen.dart';
 import '../../documents/presentation/widgets/markup_view.dart';
 import '../data/studio_controller.dart';
@@ -68,6 +70,9 @@ class _DocumentScreenState extends State<DocumentScreen> {
   int _mode = 0;
   bool _isSaving = false;
   bool _isSharing = false;
+  final _designs = ResumeDesignStore();
+
+  bool get _isResume => widget.kind == DocumentKind.resume;
 
   bool get _isDirty => _editor.text != (_saved?.content ?? widget.content);
 
@@ -105,8 +110,10 @@ class _DocumentScreenState extends State<DocumentScreen> {
     }
   }
 
-  /// "View PDF" or "Download PDF".
+  /// "View PDF" or "Download PDF", and for resumes the PDF design.
   Future<void> _pdfOptions() async {
+    final design = _isResume ? await _designs.load() : ResumeDesign.classic;
+    if (!mounted) return;
     final action = await showModalBottomSheet<_PdfAction>(
       context: context,
       showDragHandle: true,
@@ -121,6 +128,14 @@ class _DocumentScreenState extends State<DocumentScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (_isResume)
+                ListTile(
+                  leading: const Icon(Icons.palette_outlined),
+                  title: const Text('Design'),
+                  subtitle: Text('${design.label}: ${design.description}'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => Navigator.of(context).pop(_PdfAction.design),
+                ),
               ListTile(
                 leading: const Icon(Icons.visibility_outlined),
                 title: const Text('View PDF'),
@@ -139,10 +154,19 @@ class _DocumentScreenState extends State<DocumentScreen> {
       ),
     );
     if (action == null || !mounted) return;
+    if (action == _PdfAction.design) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<ResumeDesign>(
+          builder: (_) =>
+              ResumeDesignScreen(content: _editor.text, store: _designs),
+        ),
+      );
+      return;
+    }
 
     setState(() => _isSharing = true);
     try {
-      final bytes = await DocumentPdf.build(_editor.text);
+      final bytes = await DocumentPdf.build(_editor.text, design: design);
       if (!mounted) return;
       switch (action) {
         case _PdfAction.view:
@@ -154,6 +178,8 @@ class _DocumentScreenState extends State<DocumentScreen> {
                   PdfPreviewScreen(title: widget.title, bytes: bytes),
             ),
           );
+        case _PdfAction.design:
+          break;
         case _PdfAction.download:
           if (await DocumentPdf.download(title: widget.title, bytes: bytes)) {
             HapticFeedback.lightImpact();
@@ -470,4 +496,4 @@ class _ChangesCard extends StatelessWidget {
   }
 }
 
-enum _PdfAction { view, download }
+enum _PdfAction { design, view, download }
