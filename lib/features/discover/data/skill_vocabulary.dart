@@ -35,6 +35,25 @@ abstract final class SkillVocabulary {
     'Business English',
   ];
 
+  /// Whether lowercase [text] mentions [skill] as a whole word, allowing for
+  /// the usual JavaScript spellings: "React" also matches "ReactJS" and
+  /// "React.js"; "Nextjs" also matches "Next.js".
+  static bool mentions(String text, String skill) {
+    final needle = skill.toLowerCase().trim();
+    if (needle.isEmpty) return false;
+    final base = needle.endsWith('.js')
+        ? needle.substring(0, needle.length - 3)
+        : needle.endsWith('js') && needle.length > 4
+            ? needle.substring(0, needle.length - 2)
+            : needle;
+    final spellings = {needle, '${base}js', '$base.js'};
+    // Whole-word match so "Go" doesn't match "Google".
+    return spellings.any(
+      (s) => RegExp('(^|[^a-z0-9+#])${RegExp.escape(s)}(\$|[^a-z0-9+#])')
+          .hasMatch(text),
+    );
+  }
+
   /// Lowercase, without spaces or punctuation, and without a trailing
   /// "js" so "ReactJS" and "React" compare equal.
   static String normalize(String skill) {

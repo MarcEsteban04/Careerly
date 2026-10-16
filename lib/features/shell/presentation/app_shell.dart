@@ -44,7 +44,8 @@ import '../../interview_prep/data/interview_coach.dart';
 import '../../interview_prep/data/interview_prep_repository.dart';
 import '../../interview_prep/presentation/interview_prep_screen.dart';
 import '../../interview_prep/presentation/mock_interview_screen.dart';
-import '../../interview_prep/presentation/pick_application_sheet.dart';
+import '../../applications/presentation/pick_application_sheet.dart';
+import '../../ats/presentation/ats_screen.dart';
 import '../../job_alerts/data/job_alert_checker.dart';
 import '../../job_alerts/data/job_alert_store.dart';
 import '../../job_import/data/job_post_reader.dart';
@@ -65,6 +66,7 @@ import '../../resume/data/resume_reader.dart';
 import '../../settings/data/avatar_repository.dart';
 import '../../settings/presentation/profile_screen.dart';
 import '../../studio/data/career_writer.dart';
+import '../../studio/data/resume_versions.dart';
 import '../../studio/data/studio_controller.dart';
 import '../../studio/presentation/cover_letter_screen.dart';
 import '../../studio/presentation/document_screen.dart';
@@ -823,6 +825,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onSave: () => _saveListing(ranked),
         onWriteCoverLetter: () => _writeCoverLetter(_contextForListing(ranked)),
         onTailorResume: () => _enhanceResume(_contextForListing(ranked)),
+        onAtsCheck: () => _openAts(_contextForListing(ranked)),
         onApply: () => _startApply(
           job: _contextForListing(ranked),
           applyUrl: ranked.listing.applyUrl,
@@ -932,6 +935,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final application = await showPickApplicationSheet(
       context,
       applications: applications,
+      title: 'Prepare for which interview?',
+      subtitle: 'Pick a job you track. Careerly tailors the questions to it.',
     );
     if (application != null && mounted) _openInterviewPrep(application);
   }
@@ -966,6 +971,45 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     );
   }
 
+  // ATS check ------------------------------------------------------------------
+
+  List<ResumeVersion> get _resumeVersions => ResumeVersion.build(
+        original: _discover.profile.resume,
+        documents: _studio.items ?? const [],
+        applications: _workspace.data?.applications ?? const [],
+      );
+
+  /// Checks resume versions against [job], starting with [versionId].
+  void _openAts(JobContext job, {String? versionId}) {
+    _push<void>(
+      AtsScreen(
+        job: job,
+        versions: _resumeVersions,
+        initialVersionId: versionId,
+        loadContent: (version) => _studio.resumeContent(version.id),
+        onTailor: () => _enhanceResume(job),
+      ),
+    );
+  }
+
+  /// From Studio: check a version against a job she tracks.
+  Future<void> _atsCheckVersion(ResumeVersion version) async {
+    final applications = _workspace.data?.applications ?? const [];
+    if (applications.every((a) => a.status == ApplicationStatus.rejected)) {
+      _showMessage('Track a job first, then check your resume against it.');
+      return;
+    }
+    final application = await showPickApplicationSheet(
+      context,
+      applications: applications,
+      title: 'Check against which job?',
+      subtitle: 'The ATS check compares your resume with that job post.',
+    );
+    if (application != null && mounted) {
+      _openAts(_contextForApplication(application), versionId: version.id);
+    }
+  }
+
   Future<String?> _resumeTextIfAny() async {
     try {
       return await _studio.resumeText();
@@ -995,6 +1039,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onTailorResume: (a) => _enhanceResume(_contextForApplication(a)),
         onInterviewPrep: _openInterviewPrep,
         onWriteMessage: _writeMessage,
+        onAtsCheck: (a) => _openAts(_contextForApplication(a)),
         events: widget.events,
         onApply: (a) => _startApply(
           job: _contextForApplication(a),
@@ -1190,13 +1235,18 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             onAdd: _addGoal,
             onIncrement: _incrementGoal,
           ),
-          StudioScreen(
-            studio: _studio,
-            onUploadResume: _editCareerProfile,
-            onEnhanceResume: _enhanceResume,
-            onWriteCoverLetter: _writeCoverLetter,
-            onInterviewPrep: _pickInterviewPrep,
-            onOpenDocument: _openDocument,
+          ListenableBuilder(
+            listenable: _workspace,
+            builder: (context, _) => StudioScreen(
+              studio: _studio,
+              onUploadResume: _editCareerProfile,
+              onEnhanceResume: _enhanceResume,
+              onWriteCoverLetter: _writeCoverLetter,
+              onInterviewPrep: _pickInterviewPrep,
+              onOpenDocument: _openDocument,
+              applications: _workspace.data?.applications ?? const [],
+              onAtsCheck: _atsCheckVersion,
+            ),
           ),
         ],
       ),

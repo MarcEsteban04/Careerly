@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/error_message.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/header_wash.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/tab_page.dart';
+import '../../applications/data/job_application.dart';
 import '../../documents/data/career_document.dart';
 import '../../resume/data/resume_insights.dart';
+import '../data/resume_versions.dart';
 import '../data/studio_controller.dart';
+import 'widgets/resume_versions_list.dart';
 
 /// Studio tab: the uploaded resume, AI tools, and saved documents.
 class StudioScreen extends StatelessWidget {
@@ -21,6 +25,8 @@ class StudioScreen extends StatelessWidget {
     required this.onWriteCoverLetter,
     required this.onInterviewPrep,
     required this.onOpenDocument,
+    required this.applications,
+    required this.onAtsCheck,
   });
 
   final StudioController studio;
@@ -30,18 +36,127 @@ class StudioScreen extends StatelessWidget {
   final VoidCallback onInterviewPrep;
   final ValueChanged<CareerDocument> onOpenDocument;
 
+  /// Tracked applications, for each resume version's results.
+  final List<JobApplication> applications;
+
+  /// Checks a resume version against a job.
+  final ValueChanged<ResumeVersion> onAtsCheck;
+
+  void _showMessage(BuildContext context, String text) =>
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(text)));
+
+  Future<void> _onVersionAction(
+    BuildContext context,
+    ResumeVersion version,
+    ResumeVersionAction action,
+  ) async {
+    final doc = version.document;
+    switch (action) {
+      case ResumeVersionAction.open:
+        if (doc != null) onOpenDocument(doc);
+      case ResumeVersionAction.atsCheck:
+        onAtsCheck(version);
+      case ResumeVersionAction.duplicate:
+        try {
+          final copy = await studio.duplicate(
+            title: version.isOriginal
+                ? 'Resume · ${version.title}'
+                : '${version.title} (copy)',
+            content: await studio.resumeContent(version.id),
+          );
+          if (!context.mounted) return;
+          _showMessage(context, 'Saved a copy you can edit');
+          onOpenDocument(copy);
+        } catch (error) {
+          if (context.mounted) _showMessage(context, friendlyErrorMessage(error));
+        }
+      case ResumeVersionAction.rename:
+        if (doc == null) return;
+        final title = await _askTitle(context, doc.title);
+        if (title == null || title.isEmpty || title == doc.title) return;
+        try {
+          await studio.rename(doc, title);
+        } catch (error) {
+          if (context.mounted) _showMessage(context, friendlyErrorMessage(error));
+        }
+      case ResumeVersionAction.delete:
+        if (doc == null) return;
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Delete this version?'),
+            content: Text(
+              '"${doc.title}" will be removed. Applications it was sent with '
+              'keep their record.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                ),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true) return;
+        try {
+          await studio.delete(doc);
+        } catch (error) {
+          if (context.mounted) _showMessage(context, friendlyErrorMessage(error));
+        }
+    }
+  }
+
+  static Future<String?> _askTitle(BuildContext context, String current) {
+    final controller = TextEditingController(text: current);
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename version'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(hintText: 'e.g. Resume · Frontend'),
+          onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    ).whenComplete(controller.dispose);
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: studio,
       builder: (context, _) {
         final items = studio.items;
-        final resumes =
-            items?.where((d) => d.kind == DocumentKind.resume).toList() ?? [];
         final letters =
             items?.where((d) => d.kind == DocumentKind.coverLetter).toList() ??
             [];
         final resume = studio.profile().resume;
+        final versions = ResumeVersion.build(
+          original: resume,
+          documents: items ?? const [],
+          applications: applications,
+        );
 
         return TabPage(
           title: 'Studio',
@@ -102,7 +217,7 @@ class StudioScreen extends StatelessWidget {
                   onAction: studio.load,
                 ),
               )
-            else if (items.isEmpty)
+            else if (versions.isEmpty && letters.isEmpty)
               AppCard(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.md,
@@ -117,9 +232,25 @@ class StudioScreen extends StatelessWidget {
                 ),
               )
             else ...[
-              if (resumes.isNotEmpty) ...[
-                const SectionHeader(title: 'Resumes'),
-                _DocumentList(documents: resumes, onOpen: onOpenDocument),
+              if (versions.isNotEmpty) ...[
+                const SectionHeader(title: 'Resume versions'),
+                ResumeVersionsList(
+                  versions: versions,
+                  onAction: (version, action) =>
+                      _onVersionAction(context, version, action),
+                ),
+                if (versions.length > 1 && versions.every((v) => v.sent == 0))
+                  Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.xs),
+                    child: Text(
+                      'When you apply with the application kit, Careerly '
+                      'tracks which version gets interviews.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ),
                 const SizedBox(height: AppSpacing.lg),
               ],
               if (letters.isNotEmpty) ...[

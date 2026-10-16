@@ -385,7 +385,8 @@ void main() {
         ),
       );
       await openTab(tester, 'Studio');
-      expect(find.text('cv.pdf'), findsOneWidget);
+      // On the resume card and as the original version.
+      expect(find.text('cv.pdf'), findsNWidgets(2));
 
       await tester.tap(find.text('Enhance resume'));
       await tester.pumpAndSettle();
@@ -414,6 +415,62 @@ void main() {
       await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
       expect(find.text('Resume · UI Designer'), findsOneWidget);
+    });
+
+    testWidgets('resume versions show results and run an ATS check', (
+      tester,
+    ) async {
+      final day = DateTime(2026, 10, 1);
+      final profile = CareerProfile(
+        targetRoles: const ['UI Designer'],
+        resume: ResumeInsights(
+          fileName: 'cv.pdf',
+          uploadedAt: day,
+          textDocumentId: 'orig',
+        ),
+      );
+      final documents = FakeDocumentsRepository([
+        CareerDocument(
+          id: 'orig',
+          kind: DocumentKind.resume,
+          title: '${CareerDocument.originalResumePrefix} · cv.pdf',
+          content: '# Maria Santos\n## Experience\n- Designed 4 apps in Figma.',
+          createdAt: day,
+        ),
+      ]);
+      final applications = FakeApplicationsRepository([
+        JobApplication(
+          id: 'a1',
+          company: 'Globex',
+          role: 'UI Designer',
+          status: ApplicationStatus.interviewing,
+          resumeDocumentId: 'orig',
+          createdAt: day,
+          updatedAt: day,
+        ),
+      ]);
+      await pumpShell(
+        tester,
+        applications: applications,
+        discover: fakeDiscover(profile: profile),
+        studio: fakeStudio(profile: profile, documents: documents),
+      );
+      await openTab(tester, 'Studio');
+
+      final stats = find.text('Original upload · Sent once · 1 interview');
+      await Scrollable.ensureVisible(tester.element(stats), alignment: 0.4);
+      await tester.pumpAndSettle();
+      expect(find.text('Best performer'), findsOneWidget);
+
+      await tester.tap(stats);
+      await tester.pumpAndSettle();
+      expect(find.text('Check against which job?'), findsOneWidget);
+      await tester.tap(find.text('UI Designer').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('ATS check'), findsOneWidget);
+      expect(find.text('Standard sections'), findsOneWidget);
+      expect(find.text('Tailor a version with AI'), findsOneWidget);
     });
   });
 

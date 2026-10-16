@@ -191,24 +191,8 @@ abstract final class JobMatcher {
     return (job.location ?? '').toLowerCase().contains(city);
   }
 
-  /// Whether [text] mentions [skill] as a whole word, allowing for the
-  /// usual JavaScript spellings: "React" also matches "ReactJS" and
-  /// "React.js"; "Nextjs" also matches "Next.js".
-  static bool _mentions(String text, String skill) {
-    final needle = skill.toLowerCase().trim();
-    if (needle.isEmpty) return false;
-    final base = needle.endsWith('.js')
-        ? needle.substring(0, needle.length - 3)
-        : needle.endsWith('js') && needle.length > 4
-            ? needle.substring(0, needle.length - 2)
-            : needle;
-    final spellings = {needle, '${base}js', '$base.js'};
-    // Whole-word match so "Go" doesn't match "Google".
-    return spellings.any(
-      (s) => RegExp('(^|[^a-z0-9+#])${RegExp.escape(s)}(\$|[^a-z0-9+#])')
-          .hasMatch(text),
-    );
-  }
+  static bool _mentions(String text, String skill) =>
+      SkillVocabulary.mentions(text, skill);
 
   static Set<String> _words(String text) => text
       .toLowerCase()

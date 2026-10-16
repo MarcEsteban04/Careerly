@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
-import '../../applications/data/job_application.dart';
-import '../../applications/presentation/widgets/company_avatar.dart';
+import '../data/job_application.dart';
+import 'widgets/company_avatar.dart';
 
-/// Asks which tracked job to prepare for. Interviews come first; rejected
-/// applications are left out.
+/// Asks which tracked job something is for, e.g. interview prep or an ATS
+/// check. Interviews come first; rejected applications are left out.
 Future<JobApplication?> showPickApplicationSheet(
   BuildContext context, {
   required List<JobApplication> applications,
+  required String title,
+  required String subtitle,
 }) {
   int rank(ApplicationStatus status) => switch (status) {
         ApplicationStatus.interviewing => 0,
@@ -48,14 +50,13 @@ Future<JobApplication?> showPickApplicationSheet(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Prepare for which interview?',
+                      title,
                       style: theme.textTheme.titleLarge
                           ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: AppSpacing.xxs),
                     Text(
-                      'Pick a job you track. Careerly tailors the questions '
-                      'to it.',
+                      subtitle,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),

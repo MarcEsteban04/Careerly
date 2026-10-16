@@ -25,8 +25,12 @@ class JobListingScreen extends StatefulWidget {
     required this.onTailorResume,
     required this.onApply,
     required this.onNotInterested,
+    required this.onAtsCheck,
     this.profileYears,
   });
+
+  /// Checks her resume against this job.
+  final VoidCallback onAtsCheck;
 
   final RankedListing ranked;
   final bool isSaved;
@@ -393,6 +397,12 @@ class _JobListingScreenState extends State<JobListingScreen> {
         const SizedBox(height: AppSpacing.lg),
         MatchBreakdown(match: match, profileYears: widget.profileYears),
         const SizedBox(height: AppSpacing.md),
+        OutlinedButton.icon(
+          onPressed: widget.onAtsCheck,
+          icon: const Icon(Icons.fact_check_outlined),
+          label: const Text("Check my resume's ATS score"),
+        ),
+        const SizedBox(height: AppSpacing.xs),
         OutlinedButton.icon(
           onPressed: widget.onTailorResume,
           icon: const Icon(Icons.auto_fix_high_rounded),

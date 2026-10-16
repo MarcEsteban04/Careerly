@@ -117,6 +117,35 @@ class StudioController extends ChangeNotifier {
     return updated;
   }
 
+  Future<CareerDocument> rename(CareerDocument doc, String title) async {
+    final updated = await documents.update(doc.id, title: title.trim());
+    _items = [
+      for (final d in _items ?? const <CareerDocument>[])
+        d.id == doc.id ? updated : d,
+    ];
+    notifyListeners();
+    return updated;
+  }
+
+  /// Saves a copy of a resume to edit separately, e.g. from the original
+  /// upload ([content] is its text).
+  Future<CareerDocument> duplicate({
+    required String title,
+    required String content,
+  }) =>
+      save(kind: DocumentKind.resume, title: title, content: content);
+
+  /// A resume's text: a saved version's content, or the original upload.
+  Future<String> resumeContent(String documentId) async {
+    for (final doc in _items ?? const <CareerDocument>[]) {
+      if (doc.id == documentId) return doc.content;
+    }
+    if (documentId == profile().resume?.textDocumentId) return resumeText();
+    final doc = await documents.fetch(documentId);
+    if (doc == null) throw const MissingResumeException();
+    return doc.content;
+  }
+
   Future<void> delete(CareerDocument doc) async {
     await documents.delete(doc.id);
     _items = [

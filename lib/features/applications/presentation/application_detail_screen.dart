@@ -36,8 +36,12 @@ class ApplicationDetailScreen extends StatefulWidget {
     required this.onTailorResume,
     required this.onInterviewPrep,
     required this.onWriteMessage,
+    required this.onAtsCheck,
     required this.onApply,
   });
+
+  /// Checks her resume against this job.
+  final ValueChanged<JobApplication> onAtsCheck;
 
   /// Opens the message writer; [followUp] when a follow-up is due.
   final void Function(JobApplication application, {bool followUp})
@@ -179,8 +183,10 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     final action = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
+      // Many options: size to them and scroll if the screen is short.
+      isScrollControlled: true,
       builder: (context) => SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.md,
             0,
@@ -210,6 +216,11 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                 leading: const Icon(Icons.auto_fix_high_rounded),
                 title: const Text('Tailor my resume to this job'),
                 onTap: () => Navigator.of(context).pop('tailor'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.fact_check_outlined),
+                title: const Text('ATS check for my resume'),
+                onTap: () => Navigator.of(context).pop('ats'),
               ),
               ListTile(
                 leading: const Icon(Icons.record_voice_over_outlined),
@@ -242,6 +253,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     if (action == 'open') await _openJobPost(application.jobUrl!);
     if (action == 'letter') widget.onWriteCoverLetter(application);
     if (action == 'tailor') widget.onTailorResume(application);
+    if (action == 'ats') widget.onAtsCheck(application);
     if (action == 'prep') widget.onInterviewPrep(application);
     if (action == 'message') widget.onWriteMessage(application);
     if (action == 'edit') await _editDetails(application);
