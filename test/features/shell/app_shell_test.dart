@@ -346,6 +346,17 @@ void main() {
       await tester.pumpAndSettle();
       expect(documents.docs.first.title, 'Resume · UI Designer');
 
+      // The PDF button offers viewing in the app or downloading. (Wait for
+      // the "Saved" snackbar over the button to go.)
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('PDF'));
+      await tester.pumpAndSettle();
+      expect(find.text('View PDF'), findsOneWidget);
+      expect(find.text('Download PDF'), findsOneWidget);
+      await tester.tapAt(const Offset(20, 20));
+      await tester.pumpAndSettle();
+
       await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
       expect(find.text('Resume · UI Designer'), findsOneWidget);

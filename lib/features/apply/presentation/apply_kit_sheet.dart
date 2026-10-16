@@ -113,7 +113,10 @@ class _ApplyKitState extends State<_ApplyKit> {
     setState(() => _busyId = id);
     try {
       final content = await _content(id);
-      await DocumentPdf.share(title: title, content: content);
+      await DocumentPdf.share(
+        title: title,
+        bytes: await DocumentPdf.build(content),
+      );
     } catch (_) {
       _toast("Couldn't create the PDF.");
     } finally {

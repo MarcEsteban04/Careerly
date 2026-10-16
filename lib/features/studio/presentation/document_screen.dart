@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pdfrx/pdfrx.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/error_message.dart';
@@ -9,11 +10,12 @@ import '../../../core/widgets/segmented_tabs.dart';
 import '../../documents/data/career_document.dart';
 import '../../documents/data/document_markup.dart';
 import '../../documents/data/document_pdf.dart';
+import '../../documents/presentation/pdf_preview_screen.dart';
 import '../../documents/presentation/widgets/markup_view.dart';
 import '../data/studio_controller.dart';
 
-/// A resume or cover letter: preview or edit, then copy, share as PDF,
-/// save (for new drafts) or delete (for saved ones).
+/// A resume or cover letter: preview or edit, then copy, view or download
+/// as PDF, save (for new drafts) or delete (for saved ones).
 class DocumentScreen extends StatefulWidget {
   /// A freshly generated draft that hasn't been saved yet.
   const DocumentScreen.draft({
@@ -99,11 +101,63 @@ class _DocumentScreenState extends State<DocumentScreen> {
     }
   }
 
-  Future<void> _share() async {
+  /// "View PDF" or "Download PDF".
+  Future<void> _pdfOptions() async {
+    final action = await showModalBottomSheet<_PdfAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            0,
+            AppSpacing.md,
+            AppSpacing.md,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.visibility_outlined),
+                title: const Text('View PDF'),
+                subtitle: const Text('See it exactly as it will be sent'),
+                onTap: () => Navigator.of(context).pop(_PdfAction.view),
+              ),
+              ListTile(
+                leading: const Icon(Icons.download_rounded),
+                title: const Text('Download PDF'),
+                subtitle: const Text('Save it to your phone'),
+                onTap: () => Navigator.of(context).pop(_PdfAction.download),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (action == null || !mounted) return;
+
     setState(() => _isSharing = true);
     try {
-      await DocumentPdf.share(title: widget.title, content: _editor.text);
+      final bytes = await DocumentPdf.build(_editor.text);
+      if (!mounted) return;
+      switch (action) {
+        case _PdfAction.view:
+          await pdfrxFlutterInitialize();
+          if (!mounted) return;
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) =>
+                  PdfPreviewScreen(title: widget.title, bytes: bytes),
+            ),
+          );
+        case _PdfAction.download:
+          if (await DocumentPdf.download(title: widget.title, bytes: bytes)) {
+            HapticFeedback.lightImpact();
+            _showMessage('Saved ${DocumentPdf.fileNameFor(widget.title)}');
+          }
+      }
     } catch (error) {
+      debugPrint('PDF failed: $error');
       _showMessage("Couldn't create the PDF. Try again.");
     } finally {
       if (mounted) setState(() => _isSharing = false);
@@ -321,13 +375,13 @@ class _DocumentScreenState extends State<DocumentScreen> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: _isSharing ? null : _share,
+                  onPressed: _isSharing ? null : _pdfOptions,
                   icon: _isSharing
                       ? const SizedBox.square(
                           dimension: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.ios_share_rounded),
+                      : const Icon(Icons.picture_as_pdf_outlined),
                   label: const Text('PDF'),
                 ),
               ),
@@ -417,3 +471,5 @@ class _ChangesCard extends StatelessWidget {
     );
   }
 }
+
+enum _PdfAction { view, download }

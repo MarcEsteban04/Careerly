@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -5,18 +6,36 @@ import 'package:printing/printing.dart';
 
 import 'document_markup.dart';
 
-/// Renders resumes and cover letters to a clean A4 PDF and opens the share
-/// sheet (save to Files, email, Drive…).
+/// Renders resumes and cover letters to a clean A4 PDF, to view in the
+/// app, save to the device, or share (email, Drive…).
 abstract final class DocumentPdf {
   static const _accent = PdfColor.fromInt(0xFF2563EB);
   static const _muted = PdfColor.fromInt(0xFF4B5563);
 
+  /// File name for [title], e.g. "Resume for UI Designer at Acme.pdf".
+  static String fileNameFor(String title) => '${_fileName(title)}.pdf';
+
   static Future<void> share({
     required String title,
-    required String content,
+    required Uint8List bytes,
+  }) =>
+      Printing.sharePdf(bytes: bytes, filename: fileNameFor(title));
+
+  /// Opens the system "Save as" screen (Downloads by default). Returns
+  /// false if the user cancelled.
+  static Future<bool> download({
+    required String title,
+    required Uint8List bytes,
   }) async {
-    final bytes = await build(content);
-    await Printing.sharePdf(bytes: bytes, filename: '${_fileName(title)}.pdf');
+    final saved = await FilePicker.saveFile(
+      dialogTitle: 'Save PDF',
+      fileName: fileNameFor(title),
+      bytes: bytes,
+      mimeType: 'application/pdf',
+      type: FileType.custom,
+      allowedExtensions: const ['pdf'],
+    );
+    return saved != null;
   }
 
   static Future<Uint8List> build(String content) async {
