@@ -207,7 +207,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: AppSpacing.lg),
             EmphasisText(
-              "Let's get you **hired** for the job you **deserve**!",
+              'Your next **big move** starts **here**.',
               emphasisColor: theme.colorScheme.secondary,
               style: theme.textTheme.headlineMedium
                   ?.copyWith(fontSize: 30, height: 1.18),

@@ -51,7 +51,7 @@ void main() {
       await pumpShell(tester, applications: FakeApplicationsRepository());
 
       expect(find.text('Marc Esteban'), findsOneWidget);
-      expect(find.textContaining('hired'), findsOneWidget);
+      expect(find.textContaining('big move'), findsOneWidget);
       expect(find.text("You're all clear"), findsOneWidget);
       expect(find.text('No applications yet'), findsOneWidget);
     });
