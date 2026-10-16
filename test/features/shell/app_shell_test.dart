@@ -9,6 +9,7 @@ import 'package:careerly/features/applications/data/job_application.dart';
 import 'package:careerly/core/ai/ai_chain.dart';
 import 'package:careerly/features/agenda/data/agenda_event.dart';
 import 'package:careerly/features/applications/data/application_event.dart';
+import 'package:careerly/features/career_coach/data/career_coach.dart';
 import 'package:careerly/features/discover/data/job_listing.dart';
 import 'package:careerly/features/documents/data/career_document.dart';
 import 'package:careerly/features/profile/data/career_profile.dart';
@@ -135,12 +136,45 @@ void main() {
       expect(find.text('Create'), findsOneWidget);
       expect(find.text('Enhance resume'), findsWidgets);
       expect(find.text('Upload your resume'), findsOneWidget);
+      expect(find.text('Ask your career coach'), findsWidgets);
       // It asks first instead of jumping into a cover letter.
       expect(find.text('Write a cover letter'), findsNothing);
 
       await tester.tap(find.text('Cover letter').last);
       await tester.pumpAndSettle();
       expect(find.byTooltip('Back'), findsOneWidget);
+    });
+
+    testWidgets('the Studio coach card opens a chat that knows her jobs', (
+      tester,
+    ) async {
+      final ai = FakeAiProvider(
+        'Gemini',
+        reply: '{"reply": "Apply to **Design Engineer** first.", '
+            '"suggestions": ["How do I follow up?"]}',
+      );
+      final sample = sampleDashboardData(DateTime.now());
+      await pumpShell(
+        tester,
+        applications: FakeApplicationsRepository(sample.applications),
+        agenda: FakeAgendaRepository(sample.agenda),
+        goals: FakeGoalsRepository(sample.goals),
+        careerCoach: CareerCoach(AiChain([ai])),
+      );
+      await openTab(tester, 'Studio');
+
+      await tester.tap(find.text('Ask your career coach'));
+      await tester.pumpAndSettle();
+      expect(find.text('Career coach'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'What should I do next?');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Design Engineer'), findsWidgets);
+      expect(find.text('How do I follow up?'), findsOneWidget);
+      expect(ai.requests.single.prompt, contains('Design Engineer at'));
     });
 
     testWidgets('+ on Home offers what to add', (tester) async {

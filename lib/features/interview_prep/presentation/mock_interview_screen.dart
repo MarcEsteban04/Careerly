@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/voice/voice_input.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/circle_icon_button.dart';
 import '../../../core/widgets/form_banner.dart';
@@ -13,7 +14,6 @@ import '../../studio/data/career_writer.dart';
 import '../../studio/presentation/writer_error_message.dart';
 import '../data/interview_coach.dart';
 import '../data/interview_prep.dart';
-import '../data/voice_input.dart';
 
 /// Practice round: five likely questions, one at a time. She answers by
 /// typing or speaking, gets scored feedback with a stronger answer, then

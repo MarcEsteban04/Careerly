@@ -83,7 +83,7 @@ class GeminiProvider implements AiProvider {
               'generationConfig': {'responseMimeType': 'application/json'},
           }),
         )
-        .timeout(_timeout);
+        .timeout(request.timeout ?? _timeout);
     if (response.statusCode != 200) _fail(name, response);
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -151,7 +151,7 @@ class GroqProvider implements AiProvider {
               'response_format': {'type': 'json_object'},
           }),
         )
-        .timeout(_timeout);
+        .timeout(request.timeout ?? _timeout);
     if (response.statusCode != 200) _fail(name, response);
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -220,7 +220,7 @@ class OpenAiProvider implements AiProvider {
               },
           }),
         )
-        .timeout(_timeout);
+        .timeout(request.timeout ?? _timeout);
     if (response.statusCode != 200) _fail(name, response);
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;

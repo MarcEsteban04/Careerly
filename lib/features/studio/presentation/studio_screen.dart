@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_accents.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/error_message.dart';
 import '../../../core/widgets/app_card.dart';
@@ -25,6 +26,7 @@ class StudioScreen extends StatelessWidget {
     required this.studio,
     required this.onUploadResume,
     required this.onTool,
+    required this.onCoach,
     required this.onOpenDocument,
     required this.applications,
     required this.onAtsCheck,
@@ -34,6 +36,9 @@ class StudioScreen extends StatelessWidget {
   final Future<void> Function() onUploadResume;
   /// Opens one of the tools in the grid.
   final ValueChanged<StudioTool> onTool;
+
+  /// Opens the career coach chat.
+  final VoidCallback onCoach;
   final ValueChanged<CareerDocument> onOpenDocument;
 
   /// Tracked applications, for each resume version's results.
@@ -166,6 +171,8 @@ class StudioScreen extends StatelessWidget {
             onUpload: onUploadResume,
           ),
           children: [
+            _CoachCard(onTap: onCoach),
+            const SizedBox(height: AppSpacing.lg),
             const SectionHeader(title: 'Tools'),
             _ToolGrid(onTool: onTool),
             const SizedBox(height: AppSpacing.xl),
@@ -304,6 +311,82 @@ class _ResumeCard extends StatelessWidget {
             child: Text(needsUpload ? 'Upload' : 'Replace'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The way into the career coach chat: dark, so it reads as the one place
+/// to just ask.
+class _CoachCard extends StatelessWidget {
+  const _CoachCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Semantics(
+      button: true,
+      label: 'Ask your career coach',
+      excludeSemantics: true,
+      child: Material(
+        color: AppColors.ink,
+        borderRadius: BorderRadius.circular(AppRadius.lg - 4),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.16),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.forum_rounded,
+                    color: AppColors.accent,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Ask your career coach',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Knows your resume, jobs and agenda. Ask what to do '
+                        'next, how to stand out, or what to say.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.72),
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: AppColors.accent,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

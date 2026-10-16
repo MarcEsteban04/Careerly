@@ -2,7 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
-/// Dictation for practice answers, on the device's speech recognizer.
+/// Dictation (practice answers, coach questions) on the device's speech
+/// recognizer.
 /// Started only when the user taps the mic, so nothing asks for the
 /// microphone up front.
 class VoiceInput {

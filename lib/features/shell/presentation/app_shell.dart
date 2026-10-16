@@ -37,6 +37,9 @@ import '../../apply/presentation/email_apply_screen.dart';
 import '../../ats/presentation/ats_screen.dart';
 import '../../auth/data/app_lock_repository.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../career_coach/data/career_coach.dart';
+import '../../career_coach/data/coach_history_store.dart';
+import '../../career_coach/presentation/coach_screen.dart';
 import '../../company_research/data/company_researcher.dart';
 import '../../company_research/presentation/company_research_card.dart';
 import '../../dashboard/presentation/dashboard_screen.dart';
@@ -118,6 +121,8 @@ class AppShell extends StatefulWidget {
     this.messageWriter,
     this.companyResearcher,
     this.negotiationCoach,
+    this.careerCoach,
+    this.coachHistory,
     this.formFiller,
     this.applicantDetails,
     this.answerLibrary,
@@ -162,6 +167,8 @@ class AppShell extends StatefulWidget {
   final MessageWriter? messageWriter;
   final CompanyResearcher? companyResearcher;
   final NegotiationCoach? negotiationCoach;
+  final CareerCoach? careerCoach;
+  final CoachHistoryStore? coachHistory;
   final FormFiller? formFiller;
   final ApplicantDetailsStore? applicantDetails;
   final AnswerLibrary? answerLibrary;
@@ -259,6 +266,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       widget.companyResearcher ?? CompanyResearcher(_ai);
   late final _negotiationCoach =
       widget.negotiationCoach ?? NegotiationCoach(_ai);
+  late final _careerCoach = widget.careerCoach ?? CareerCoach(_ai);
+  late final _coachHistory = widget.coachHistory ?? CoachHistoryStore();
   late final _formFiller = widget.formFiller ?? FormFiller(_ai);
   late final _applicantDetails =
       widget.applicantDetails ?? ApplicantDetailsStore();
@@ -1330,6 +1339,29 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
   }
 
+  /// The career coach chat, grounded in her current profile and search.
+  void _openCareerCoach() {
+    _push<void>(
+      CoachScreen(
+        coach: _careerCoach,
+        history: _coachHistory,
+        firstName: widget.authRepository.currentUserName?.split(' ').first,
+        loadContext: () async {
+          final resume = await _resumeTextIfAny();
+          final data = _workspace.data;
+          return CoachContext(
+            profile: _discover.profile,
+            name: widget.authRepository.currentUserName,
+            resumeText: resume == null ? null : markupToPlainText(resume),
+            applications: data?.applications ?? const [],
+            upcoming: data?.upcoming ?? const [],
+            goals: data?.goals ?? const [],
+          );
+        },
+      ),
+    );
+  }
+
   Future<String?> _resumeTextIfAny() async {
     try {
       return await _studio.resumeText();
@@ -1414,6 +1446,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       context,
       title: 'Create',
       options: [
+        AddOption(
+          value: () async => _openCareerCoach(),
+          icon: Icons.forum_rounded,
+          accent: Accent.teal,
+          title: 'Ask your career coach',
+          subtitle: 'Chat about your search, resume, interviews or offers',
+        ),
         for (final tool in creates)
           AddOption(
             value: () => _openStudioTool(tool),
@@ -1597,6 +1636,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               studio: _studio,
               onUploadResume: _editCareerProfile,
               onTool: _openStudioTool,
+              onCoach: _openCareerCoach,
               onOpenDocument: _openDocument,
               applications: _workspace.data?.applications ?? const [],
               onAtsCheck: _atsCheckVersion,

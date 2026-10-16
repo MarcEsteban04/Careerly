@@ -14,6 +14,7 @@ import 'package:careerly/features/apply/presentation/apply_browser_screen.dart';
 import 'package:careerly/features/auth/data/app_lock_repository.dart';
 import 'package:careerly/core/ai/ai_chain.dart';
 import 'package:careerly/features/applications/data/application_event.dart';
+import 'package:careerly/features/career_coach/data/career_coach.dart';
 import 'package:careerly/features/company_research/data/company_researcher.dart';
 import 'package:careerly/features/discover/data/discover_controller.dart';
 import 'package:careerly/features/discover/data/search_preferences_repository.dart';
@@ -364,6 +365,7 @@ Future<void> pumpShell(
   MessageWriter? messageWriter,
   CompanyResearcher? companyResearcher,
   NegotiationCoach? negotiationCoach,
+  CareerCoach? careerCoach,
 }) async {
   tester.platformDispatcher.accessibilityFeaturesTestValue =
       const FakeAccessibilityFeatures(disableAnimations: true);
@@ -402,6 +404,7 @@ Future<void> pumpShell(
         messageWriter: messageWriter,
         companyResearcher: companyResearcher,
         negotiationCoach: negotiationCoach,
+        careerCoach: careerCoach,
       ),
     ),
   );

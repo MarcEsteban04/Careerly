@@ -9,6 +9,7 @@ class AiRequest {
     this.pdfText,
     this.webSearch = false,
     this.json = false,
+    this.timeout,
   });
 
   final String prompt;
@@ -25,6 +26,10 @@ class AiRequest {
 
   /// Ask for a JSON-only reply.
   final bool json;
+
+  /// How long each provider gets before the next one is tried; long by
+  /// default for documents, shorter for chat.
+  final Duration? timeout;
 }
 
 /// A language model API.
