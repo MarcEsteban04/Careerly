@@ -8,6 +8,7 @@ import '../../../core/widgets/bottom_action_bar.dart';
 import '../../../core/widgets/circle_icon_button.dart';
 import '../../../core/widgets/hero_header.dart';
 import '../../../core/widgets/hero_top_bar.dart';
+import '../../../core/widgets/island_toast.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../../core/widgets/segmented_tabs.dart';
@@ -15,8 +16,8 @@ import '../../documents/data/career_document.dart';
 import '../../documents/data/document_markup.dart';
 import '../../documents/data/document_pdf.dart';
 import '../../documents/data/resume_design.dart';
-import '../../documents/presentation/resume_design_screen.dart';
 import '../../documents/presentation/pdf_preview_screen.dart';
+import '../../documents/presentation/resume_design_screen.dart';
 import '../../documents/presentation/widgets/markup_view.dart';
 import '../data/studio_controller.dart';
 
@@ -83,9 +84,7 @@ class _DocumentScreenState extends State<DocumentScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    Island.show(context, message);
   }
 
   Future<void> _save() async {

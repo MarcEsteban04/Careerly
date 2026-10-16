@@ -13,6 +13,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/bottom_action_bar.dart';
 import '../../../core/widgets/circle_icon_button.dart';
 import '../../../core/widgets/icon_badge.dart';
+import '../../../core/widgets/island_toast.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../studio/data/career_writer.dart';
 import '../../studio/presentation/writer_error_message.dart';
@@ -156,9 +157,7 @@ class _ApplyBrowserScreenState extends State<ApplyBrowserScreen> {
     }
   }
 
-  void _showMessage(String text) => ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(text)));
+  void _showMessage(String text) => Island.show(context, text);
 
   /// When the page asks for a file: her chosen resume, or any file.
   Future<List<String>> _chooseFiles(FileSelectorParams params) async {

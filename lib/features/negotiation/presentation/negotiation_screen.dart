@@ -6,6 +6,7 @@ import '../../../core/theme/app_accents.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/icon_badge.dart';
+import '../../../core/widgets/island_toast.dart';
 import '../../../core/widgets/labeled_field.dart';
 import '../../applications/data/job_application.dart';
 import '../../profile/data/career_profile.dart';
@@ -69,9 +70,7 @@ class _NegotiationScreenState extends State<NegotiationScreen> {
     super.dispose();
   }
 
-  void _showMessage(String text) => ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(text)));
+  void _showMessage(String text) => Island.show(context, text);
 
   Future<void> _build() async {
     FocusScope.of(context).unfocus();

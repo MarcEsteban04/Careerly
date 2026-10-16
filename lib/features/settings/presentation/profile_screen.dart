@@ -10,6 +10,7 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/circle_icon_button.dart';
 import '../../../core/widgets/hero_header.dart';
 import '../../../core/widgets/icon_badge.dart';
+import '../../../core/widgets/island_toast.dart';
 import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/stat_tile.dart';
@@ -176,9 +177,7 @@ enum _PhotoAction { camera, gallery, remove }
 class _HeaderState extends State<_Header> {
   bool _isSaving = false;
 
-  void _showMessage(String message) => ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(message)));
+  void _showMessage(String message) => Island.show(context, message);
 
   Future<void> _changePhoto() async {
     final hasPhoto = widget.authRepository.currentUserAvatarUrl != null;

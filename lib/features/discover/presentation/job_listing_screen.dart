@@ -8,6 +8,7 @@ import '../../../core/widgets/bottom_action_bar.dart';
 import '../../../core/widgets/circle_icon_button.dart';
 import '../../../core/widgets/hero_header.dart';
 import '../../../core/widgets/hero_top_bar.dart';
+import '../../../core/widgets/island_toast.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../../core/widgets/segmented_tabs.dart';
@@ -93,9 +94,7 @@ class _JobListingScreenState extends State<JobListingScreen> {
     final opened =
         uri != null && await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Couldn't open the job post.")),
-      );
+      Island.show(context, "Couldn't open the job post.");
     }
   }
 

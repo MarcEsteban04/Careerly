@@ -6,6 +6,7 @@ import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/form_sheet.dart';
 import '../../../core/widgets/hero_header.dart';
 import '../../../core/widgets/hero_top_bar.dart';
+import '../../../core/widgets/island_toast.dart';
 import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../../core/widgets/tag_pill.dart';
 import '../data/answer_library.dart';
@@ -63,14 +64,14 @@ class _SavedAnswersScreenState extends State<SavedAnswersScreen> {
     final before = _answers!;
     await _replace([for (final a in before) if (!identical(a, answer)) a]);
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: const Text('Answer deleted'),
-          action: SnackBarAction(label: 'Undo', onPressed: () => _replace(before)),
-        ),
-      );
+    Island.show(
+      context,
+      'Answer deleted',
+      tone: IslandTone.info,
+      icon: Icons.delete_outline_rounded,
+      actionLabel: 'Undo',
+      onAction: () => _replace(before),
+    );
   }
 
   @override

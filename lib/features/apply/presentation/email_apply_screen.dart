@@ -8,6 +8,7 @@ import '../../../core/theme/app_accents.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/icon_badge.dart';
+import '../../../core/widgets/island_toast.dart';
 import '../../../core/widgets/labeled_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../messages/data/message_writer.dart';
@@ -65,9 +66,7 @@ class _EmailApplyScreenState extends State<EmailApplyScreen> {
     super.dispose();
   }
 
-  void _showMessage(String text) => ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(text)));
+  void _showMessage(String text) => Island.show(context, text);
 
   Future<void> _write() async {
     FocusScope.of(context).unfocus();

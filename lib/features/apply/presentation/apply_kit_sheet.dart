@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/island_toast.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../documents/data/career_document.dart';
 import '../../documents/data/document_markup.dart';
@@ -180,9 +181,7 @@ class _ApplyKitState extends State<_ApplyKit> {
 
   void _toast(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    Island.show(context, message);
   }
 
   @override

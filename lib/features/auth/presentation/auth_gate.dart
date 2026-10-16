@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/header_wash.dart';
+import '../../../core/widgets/island_toast.dart';
 import '../../shell/presentation/app_shell.dart';
 import '../data/app_lock_repository.dart';
 import '../data/auth_repository.dart';
@@ -123,9 +124,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
     }
     await appLock.setEnabled(true);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Biometric unlock is on')),
-    );
+    Island.show(context, 'Biometric unlock is on');
   }
 
   @override

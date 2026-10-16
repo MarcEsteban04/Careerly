@@ -7,6 +7,7 @@ import '../../../core/utils/error_message.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/icon_badge.dart';
+import '../../../core/widgets/island_toast.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/tab_page.dart';
 import '../../applications/data/job_application.dart';
@@ -42,9 +43,7 @@ class StudioScreen extends StatelessWidget {
   final ValueChanged<ResumeVersion> onAtsCheck;
 
   void _showMessage(BuildContext context, String text) =>
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(text)));
+      Island.show(context, text);
 
   Future<void> _onVersionAction(
     BuildContext context,

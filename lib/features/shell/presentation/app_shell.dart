@@ -9,6 +9,7 @@ import '../../../core/ai/ai_chain.dart';
 import '../../../core/ai/providers.dart';
 import '../../../core/config/env.dart';
 import '../../../core/utils/error_message.dart';
+import '../../../core/widgets/island_toast.dart';
 import '../../agenda/data/agenda_event.dart';
 import '../../agenda/data/agenda_repository.dart';
 import '../../agenda/presentation/agenda_event_form_sheet.dart';
@@ -16,11 +17,12 @@ import '../../agenda/presentation/agenda_screen.dart';
 import '../../applications/data/application_event.dart';
 import '../../applications/data/applications_repository.dart';
 import '../../applications/data/job_application.dart';
-import '../../applications/presentation/application_detail_screen.dart';
-import '../../applications/presentation/application_form_sheet.dart';
 import '../../applications/data/stale_applications.dart';
 import '../../applications/data/tracked_view.dart';
+import '../../applications/presentation/application_detail_screen.dart';
+import '../../applications/presentation/application_form_sheet.dart';
 import '../../applications/presentation/applications_screen.dart';
+import '../../applications/presentation/pick_application_sheet.dart';
 import '../../applications/presentation/stale_applications_sheet.dart';
 import '../../apply/data/answer_library.dart';
 import '../../apply/data/applicant_details.dart';
@@ -31,6 +33,7 @@ import '../../apply/presentation/apply_browser_screen.dart';
 import '../../apply/presentation/apply_confirm_dialog.dart';
 import '../../apply/presentation/apply_kit_sheet.dart';
 import '../../apply/presentation/email_apply_screen.dart';
+import '../../ats/presentation/ats_screen.dart';
 import '../../auth/data/app_lock_repository.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../company_research/data/company_researcher.dart';
@@ -38,17 +41,17 @@ import '../../company_research/presentation/company_research_card.dart';
 import '../../dashboard/presentation/dashboard_screen.dart';
 import '../../discover/data/ai_job_search_client.dart';
 import '../../discover/data/discover_controller.dart';
+import '../../discover/data/discover_settings_store.dart';
 import '../../discover/data/jooble_client.dart';
 import '../../discover/data/jsearch_client.dart';
 import '../../discover/data/search_preferences_repository.dart';
-import '../../discover/data/discover_settings_store.dart';
 import '../../discover/presentation/job_listing_screen.dart';
 import '../../documents/data/career_document.dart';
 import '../../documents/data/document_markup.dart';
 import '../../documents/data/document_pdf.dart';
+import '../../documents/data/documents_repository.dart';
 import '../../documents/data/resume_design.dart';
 import '../../documents/presentation/resume_design_screen.dart';
-import '../../documents/data/documents_repository.dart';
 import '../../goals/data/goal.dart';
 import '../../goals/data/goals_repository.dart';
 import '../../goals/presentation/goal_form_sheet.dart';
@@ -57,8 +60,6 @@ import '../../interview_prep/data/interview_coach.dart';
 import '../../interview_prep/data/interview_prep_repository.dart';
 import '../../interview_prep/presentation/interview_prep_screen.dart';
 import '../../interview_prep/presentation/mock_interview_screen.dart';
-import '../../applications/presentation/pick_application_sheet.dart';
-import '../../ats/presentation/ats_screen.dart';
 import '../../job_alerts/data/job_alert_checker.dart';
 import '../../job_alerts/data/job_alert_store.dart';
 import '../../job_import/data/job_post_reader.dart';
@@ -374,16 +375,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         ? '${moving.first.role} moved to ${status.label}'
         : 'Moved $moved to ${status.label}';
     final single = moving.length == 1 ? moving.first : null;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(failed == 0 ? label : "$label. $failed couldn't move."),
-          action: single == null
-              ? null
-              : SnackBarAction(
-                  label: 'Undo',
-                  onPressed: () async {
+    Island.show(
+      context,
+      failed == 0 ? label : "$label. $failed couldn't move.",
+      tone: failed == 0 ? IslandTone.success : IslandTone.error,
+      icon: Icons.swap_horiz_rounded,
+      actionLabel: single == null ? null : 'Undo',
+      onAction: single == null
+          ? null
+          : () async {
                     final current =
                         _workspace.data?.applicationById(single.id) ?? single;
                     try {
@@ -394,9 +394,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                       _showMessage(friendlyErrorMessage(error));
                     }
                   },
-                ),
-        ),
-      );
+    );
   }
 
   Future<void> _deleteApplications(List<JobApplication> applications) async {
@@ -622,9 +620,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   void _showMessage(String? message) {
     if (message == null || !mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    Island.show(context, message);
   }
 
   Future<T?> _push<T>(Widget screen) => Navigator.of(context).push<T>(
@@ -688,17 +684,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _showMessage(error);
       return;
     }
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('Hid ${ranked.listing.title}'),
-          action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () => _discover.undoDismiss(ranked.listing),
-          ),
-        ),
-      );
+    Island.show(
+      context,
+      'Hid ${ranked.listing.title}',
+      tone: IslandTone.info,
+      icon: Icons.visibility_off_outlined,
+      actionLabel: 'Undo',
+      onAction: () => _discover.undoDismiss(ranked.listing),
+    );
   }
 
   Future<void> _toggleSaveSearch() async {

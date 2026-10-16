@@ -5,6 +5,7 @@ import 'package:pdfrx/pdfrx.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/circle_icon_button.dart';
 import '../../../core/widgets/hero_header.dart';
+import '../../../core/widgets/island_toast.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../data/document_pdf.dart';
 
@@ -23,9 +24,7 @@ class PdfPreviewScreen extends StatefulWidget {
 class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
   bool _isDownloading = false;
 
-  void _showMessage(String message) => ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(message)));
+  void _showMessage(String message) => Island.show(context, message);
 
   Future<void> _download() async {
     setState(() => _isDownloading = true);

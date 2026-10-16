@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/island_toast.dart';
 import '../data/job_application.dart';
 import '../data/stale_applications.dart';
 import 'widgets/company_avatar.dart';
@@ -66,7 +67,7 @@ class _StaleSheetState extends State<_StaleSheet> {
     if (error == null) {
       HapticFeedback.lightImpact();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      Island.show(context, error);
     }
   }
 

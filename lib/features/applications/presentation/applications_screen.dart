@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/island_toast.dart';
 import '../../../core/widgets/pill_chip.dart';
 import '../../../core/widgets/search_pill.dart';
 import '../../../core/widgets/segmented_tabs.dart';
@@ -240,6 +241,8 @@ class ApplicationsScreen extends StatelessWidget {
                             : () => onOpenApplication(application.id),
                         onLongPress: () {
                           HapticFeedback.selectionClick();
+                          // The selection bar takes the island's spot.
+                          Island.hide();
                           trackedView.toggleSelected(application.id);
                         },
                       ),

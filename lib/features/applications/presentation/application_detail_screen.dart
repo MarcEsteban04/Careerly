@@ -14,6 +14,7 @@ import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/hero_header.dart';
 import '../../../core/widgets/hero_top_bar.dart';
 import '../../../core/widgets/icon_badge.dart';
+import '../../../core/widgets/island_toast.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../../core/widgets/segmented_tabs.dart';
@@ -99,9 +100,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    Island.show(context, message);
   }
 
   Future<void> _changeStatus(JobApplication application) async {
@@ -193,8 +192,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
       _showMessage(error);
     } else {
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Deleted ${application.role}')));
+      Island.show(context, 'Deleted ${application.role}');
     }
   }
 

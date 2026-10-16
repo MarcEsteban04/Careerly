@@ -47,7 +47,6 @@ abstract final class AppTheme {
     required Color onPrimary,
     required Color error,
   }) {
-    final isDark = brightness == Brightness.dark;
     final colorScheme = ColorScheme.fromSeed(
       seedColor: AppColors.accent,
       brightness: brightness,
@@ -185,15 +184,6 @@ abstract final class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
           side: BorderSide(color: outline),
-        ),
-      ),
-      snackBarTheme: SnackBarThemeData(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: isDark ? AppColors.darkNav : AppColors.ink,
-        contentTextStyle: textTheme.bodyMedium?.copyWith(color: Colors.white),
-        actionTextColor: AppColors.accent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(

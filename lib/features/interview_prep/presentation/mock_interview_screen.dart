@@ -7,6 +7,7 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/circle_icon_button.dart';
 import '../../../core/widgets/form_banner.dart';
 import '../../../core/widgets/hero_header.dart';
+import '../../../core/widgets/island_toast.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../studio/data/career_writer.dart';
 import '../../studio/presentation/writer_error_message.dart';
@@ -109,14 +110,10 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
       HapticFeedback.selectionClick();
       setState(() => _isListening = true);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
+      Island.show(context, 
             "Voice input isn't available. Allow the microphone, or type "
             'your answer.',
-          ),
-        ),
-      );
+          );
     }
   }
 
