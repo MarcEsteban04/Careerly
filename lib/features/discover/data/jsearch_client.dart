@@ -23,19 +23,31 @@ class JSearchClient {
   bool get isConfigured => apiKey.isNotEmpty;
 
   Future<List<JobListing>> search(JobSearchQuery query) async {
-    final where = switch (query.scope) {
-      SearchScope.philippines =>
-        ' in ${query.location?.trim().isNotEmpty == true ? query.location : 'Philippines'}',
-      SearchScope.remote => ' remote',
-      SearchScope.anywhere => '',
-    };
+    final scope = query.scope;
+    final abroad = scope.country;
+    final String where;
+    final String? country;
+    if (abroad != null) {
+      where = ' in ${abroad.name}';
+      country = abroad.code;
+    } else if (scope == SearchScope.remote) {
+      where = ' remote';
+      country = 'ph';
+    } else if (scope == SearchScope.anywhere) {
+      where = '';
+      country = null;
+    } else {
+      final city = query.location?.trim() ?? '';
+      where = ' in ${city.isNotEmpty ? city : 'Philippines'}';
+      country = 'ph';
+    }
     final uri = Uri.https(_host, '/jsearch/search', {
       'query': '${query.keywords}$where',
       'page': '${query.page}',
       'num_pages': '1',
       'date_posted': query.postedWithin.jsearchValue,
-      if (query.scope != SearchScope.anywhere) 'country': 'ph',
-      if (query.scope == SearchScope.remote) 'work_from_home': 'true',
+      'country': ?country,
+      if (scope == SearchScope.remote) 'work_from_home': 'true',
     });
 
     final response = await _http

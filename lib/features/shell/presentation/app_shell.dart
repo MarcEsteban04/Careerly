@@ -30,6 +30,7 @@ import '../../discover/data/discover_controller.dart';
 import '../../discover/data/jooble_client.dart';
 import '../../discover/data/jsearch_client.dart';
 import '../../discover/data/search_preferences_repository.dart';
+import '../../discover/data/search_scope_store.dart';
 import '../../discover/presentation/job_listing_screen.dart';
 import '../../documents/data/career_document.dart';
 import '../../documents/data/documents_repository.dart';
@@ -189,6 +190,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         aiSearch: AiJobSearchClient(_ai),
         resumeReader: ResumeReader(_ai),
         preferences: SearchPreferencesRepository(),
+        scopeStore: SearchScopeStore(),
         alerts: _alertStore,
       );
 

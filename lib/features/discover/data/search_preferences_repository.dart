@@ -15,10 +15,7 @@ class SavedSearch {
   factory SavedSearch.fromJson(Map<String, dynamic> json) => SavedSearch(
         id: json['id'] as String,
         keywords: json['keywords'] as String,
-        scope: SearchScope.values.firstWhere(
-          (s) => s.name == json['scope'],
-          orElse: () => SearchScope.philippines,
-        ),
+        scope: SearchScope.parse(json['scope']),
         postedWithin: PostedWithin.values.firstWhere(
           (p) => p.name == json['posted_within'],
           orElse: () => PostedWithin.month,

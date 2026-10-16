@@ -228,6 +228,34 @@ void main() {
       expect(find.textContaining('% MATCH'), findsNWidgets(2));
     });
 
+    testWidgets('searches a country abroad', (tester) async {
+      final discover = fakeDiscover(
+        listings: sampleListings,
+        profile: const CareerProfile(targetRoles: ['UI Designer']),
+      );
+      await pumpShell(
+        tester,
+        applications: FakeApplicationsRepository(),
+        discover: discover,
+      );
+      await openTab(tester, 'Jobs');
+      await tester.tap(find.text('Discover'));
+      await tester.pumpAndSettle();
+
+      await tapChip(tester, 'Abroad');
+      expect(find.text('Search jobs abroad'), findsOneWidget);
+      await tester.enterText(find.byType(TextField).last, 'jap');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Japan'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Japan'), findsOneWidget);
+      await tester.tap(find.text('Search "UI Designer"'));
+      await tester.pumpAndSettle();
+      final query = (discover.jsearch as FakeJSearchClient).queries.last;
+      expect(query.scope.country?.code, 'jp');
+    });
+
     testWidgets('asks for a profile when there is none', (tester) async {
       await pumpDiscover(tester, profile: const CareerProfile());
 
@@ -546,6 +574,27 @@ void main() {
       expect(find.text('3 years'), findsOneWidget);
       expect(find.text('Manila'), findsOneWidget);
       expect(find.text('Edit'), findsOneWidget);
+    });
+
+    testWidgets('shows every skill on request', (tester) async {
+      await openProfile(
+        tester,
+        CareerProfile(
+          targetRoles: const ['Web Developer'],
+          skills: [for (var i = 1; i <= 15; i++) 'Skill $i'],
+        ),
+      );
+
+      expect(find.text('Skill 15'), findsNothing);
+      await tester.tap(find.text('+3 more'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Skill 15'), findsOneWidget);
+      // Expanding doesn't open the editor.
+      expect(find.text('Career profile'), findsOneWidget);
+      await tester.tap(find.text('Show less'));
+      await tester.pumpAndSettle();
+      expect(find.text('Skill 15'), findsNothing);
     });
   });
 

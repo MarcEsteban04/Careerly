@@ -19,12 +19,15 @@ class AiJobSearchClient {
       'real URLs. Reply with JSON only.';
 
   Future<List<JobListing>> search(JobSearchQuery query) async {
-    final where = switch (query.scope) {
-      SearchScope.philippines =>
-        'in ${query.location?.trim().isNotEmpty == true ? '${query.location}, ' : ''}the Philippines',
-      SearchScope.remote => 'that are remote and open to applicants in the Philippines',
-      SearchScope.anywhere => 'anywhere',
-    };
+    final scope = query.scope;
+    final where = scope.country != null
+        ? 'in ${scope.country!.name} that accept foreign applicants, such as '
+            'Filipinos'
+        : scope == SearchScope.remote
+            ? 'that are remote and open to applicants in the Philippines'
+            : scope == SearchScope.anywhere
+                ? 'anywhere'
+                : 'in ${query.location?.trim().isNotEmpty == true ? '${query.location}, ' : ''}the Philippines';
     final recency = switch (query.postedWithin) {
       PostedWithin.today => 'posted today',
       PostedWithin.week => 'posted in the last 7 days',

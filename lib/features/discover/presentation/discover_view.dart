@@ -9,6 +9,7 @@ import '../../../core/widgets/search_pill.dart';
 import '../../profile/data/career_profile.dart';
 import '../data/discover_controller.dart';
 import '../data/job_search_query.dart';
+import 'widgets/country_picker_sheet.dart';
 import 'widgets/job_listing_card.dart';
 
 /// Header for the Discover section: profile summary, search and filters.
@@ -58,19 +59,47 @@ class DiscoverHeader extends StatelessWidget {
           clipBehavior: Clip.none,
           child: Row(
             children: [
-              for (final scope in SearchScope.values) ...[
-                PillChip(
-                  label: scope.label,
-                  leading: Icon(switch (scope) {
-                    SearchScope.philippines => Icons.flag_outlined,
-                    SearchScope.remote => Icons.public_rounded,
-                    SearchScope.anywhere => Icons.travel_explore_rounded,
-                  }),
-                  selected: controller.scope == scope,
-                  onTap: () => controller.setScope(scope),
-                ),
-                const SizedBox(width: AppSpacing.xs),
-              ],
+              PillChip(
+                label: SearchScope.philippines.label,
+                leading: const Icon(Icons.flag_outlined),
+                selected: controller.scope == SearchScope.philippines,
+                onTap: () => controller.setScope(SearchScope.philippines),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              PillChip(
+                label: SearchScope.remote.label,
+                leading: const Icon(Icons.public_rounded),
+                selected: controller.scope == SearchScope.remote,
+                onTap: () => controller.setScope(SearchScope.remote),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              PillChip(
+                label: controller.scope.isAbroad
+                    ? '${controller.scope.country!.flag}  '
+                        '${controller.scope.country!.name}'
+                    : 'Abroad',
+                leading: controller.scope.isAbroad
+                    ? null
+                    : const Icon(Icons.flight_takeoff_rounded),
+                selected: controller.scope.isAbroad,
+                onTap: () async {
+                  final country = await showCountryPicker(
+                    context,
+                    selected: controller.scope.country,
+                  );
+                  if (country != null) {
+                    controller.setScope(SearchScope.abroad(country));
+                  }
+                },
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              PillChip(
+                label: SearchScope.anywhere.label,
+                leading: const Icon(Icons.travel_explore_rounded),
+                selected: controller.scope == SearchScope.anywhere,
+                onTap: () => controller.setScope(SearchScope.anywhere),
+              ),
+              const SizedBox(width: AppSpacing.xs),
               _PostedWithinButton(controller: controller),
             ],
           ),

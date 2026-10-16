@@ -542,7 +542,8 @@ class _Label extends StatelessWidget {
       );
 }
 
-class _Chips extends StatelessWidget {
+/// Chips that show the first [max], with "+N more" to reveal the rest.
+class _Chips extends StatefulWidget {
   const _Chips({required this.items, this.max = 6, this.emphasized = false});
 
   final List<String> items;
@@ -550,16 +551,26 @@ class _Chips extends StatelessWidget {
   final bool emphasized;
 
   @override
+  State<_Chips> createState() => _ChipsState();
+}
+
+class _ChipsState extends State<_Chips> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final extra = items.length - max;
+    final items = widget.items;
+    final emphasized = widget.emphasized;
+    final extra = items.length - widget.max;
+    final shown = _expanded ? items : items.take(widget.max);
 
     return Wrap(
       spacing: 6,
       runSpacing: 6,
       children: [
-        for (final item in items.take(max))
+        for (final item in shown)
           Container(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.sm,
@@ -580,12 +591,40 @@ class _Chips extends StatelessWidget {
             ),
           ),
         if (extra > 0)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 5),
-            child: Text(
-              '+$extra more',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: colorScheme.onSurfaceVariant),
+          Semantics(
+            button: true,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: colorScheme.outlineVariant),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _expanded ? 'Show less' : '+$extra more',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Icon(
+                      _expanded
+                          ? Icons.expand_less_rounded
+                          : Icons.expand_more_rounded,
+                      size: 16,
+                      color: colorScheme.primary,
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
       ],

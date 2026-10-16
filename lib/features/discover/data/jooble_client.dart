@@ -27,6 +27,8 @@ class JoobleClient {
           body: jsonEncode({
             'keywords': query.keywords,
             if (query.scope == SearchScope.remote) 'location': 'Remote',
+            if (query.scope.country != null)
+              'location': query.scope.country!.name,
             'page': '${query.page}',
           }),
         )

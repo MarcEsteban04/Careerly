@@ -13,6 +13,7 @@ import 'job_search_query.dart';
 import 'jooble_client.dart';
 import 'jsearch_client.dart';
 import 'search_preferences_repository.dart';
+import 'search_scope_store.dart';
 
 /// A listing with its match against the career profile (if any).
 class RankedListing {
@@ -48,8 +49,27 @@ class DiscoverController extends ChangeNotifier {
     this.resumeReader,
     this.preferences,
     this.alerts,
+    this.scopeStore,
   }) : _profile = profiles.read() {
+    // Remote-minded profiles start on remote jobs.
+    if (_profile.workSetup == WorkSetup.remote) _scope = SearchScope.remote;
     _loadPreferences();
+    _loadScope();
+  }
+
+  /// Remembers the chosen search area; optional.
+  final SearchScopeStore? scopeStore;
+
+  Future<void> _loadScope() async {
+    try {
+      final saved = await scopeStore?.read();
+      // A search already running keeps its area.
+      if (saved == null || saved == _scope || _query != null) return;
+      _scope = saved;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Saved search area unavailable: $e');
+    }
   }
 
   final JSearchClient jsearch;
@@ -129,7 +149,7 @@ class DiscoverController extends ChangeNotifier {
 
   Future<void> saveProfile(CareerProfile profile) async {
     _profile = await profiles.save(profile);
-    _syncAlerts(() => alerts?.setLocation(_profile.effectiveLocation));
+    _bestEffort(() => alerts?.setLocation(_profile.effectiveLocation));
     _refreshResults();
   }
 
@@ -146,6 +166,7 @@ class DiscoverController extends ChangeNotifier {
     if (scope == _scope) return;
     _scope = scope;
     notifyListeners();
+    _bestEffort(() => scopeStore?.save(scope));
     if (_results != null) search(_keywords);
   }
 
@@ -366,7 +387,7 @@ class DiscoverController extends ChangeNotifier {
       _savedSearches = saved;
       _dismissed = dismissed;
       _refreshResults();
-      await _syncAlerts(() async {
+      await _bestEffort(() async {
         await alerts?.setSearches(saved);
         await alerts?.setDismissed(dismissed);
         await alerts?.setLocation(_profile.effectiveLocation);
@@ -390,12 +411,13 @@ class DiscoverController extends ChangeNotifier {
     }
   }
 
-  /// Device storage for alerts is best-effort; it never blocks searching.
-  Future<void> _syncAlerts(Future<void>? Function() write) async {
+  /// Device storage (alerts, the chosen area) is best-effort; it never
+  /// blocks searching.
+  Future<void> _bestEffort(Future<void>? Function() write) async {
     try {
       await write();
     } catch (e) {
-      debugPrint('Job alert sync failed: $e');
+      debugPrint('Saving on this device failed: $e');
     }
   }
 
@@ -423,12 +445,12 @@ class DiscoverController extends ChangeNotifier {
         _savedSearches = [saved, ..._savedSearches];
         // What's on screen now isn't news: alert only on later postings.
         final shown = _pages?.listings ?? const <JobListing>[];
-        await _syncAlerts(
+        await _bestEffort(
           () => alerts?.markSeen(saved.id, shown.map((l) => l.dedupeKey)),
         );
       }
       notifyListeners();
-      await _syncAlerts(() => alerts?.setSearches(_savedSearches));
+      await _bestEffort(() => alerts?.setSearches(_savedSearches));
       return null;
     } catch (e) {
       return _preferenceError(e);
@@ -442,10 +464,10 @@ class DiscoverController extends ChangeNotifier {
       _freshCounts = {..._freshCounts}..remove(search.id);
       notifyListeners();
     }
-    await _syncAlerts(() => alerts?.clearFresh(search.id));
+    await _bestEffort(() => alerts?.clearFresh(search.id));
     await this.search(search.keywords);
     final shown = _pages?.listings ?? const <JobListing>[];
-    await _syncAlerts(
+    await _bestEffort(
       () => alerts?.markSeen(search.id, shown.map((l) => l.dedupeKey)),
     );
   }
@@ -461,7 +483,7 @@ class DiscoverController extends ChangeNotifier {
       ];
       _freshCounts = {..._freshCounts}..remove(search.id);
       notifyListeners();
-      await _syncAlerts(() => alerts?.setSearches(_savedSearches));
+      await _bestEffort(() => alerts?.setSearches(_savedSearches));
       return null;
     } catch (e) {
       return _preferenceError(e);
@@ -476,7 +498,7 @@ class DiscoverController extends ChangeNotifier {
     _refreshResults();
     try {
       await preferences?.dismiss(job);
-      await _syncAlerts(() => alerts?.setDismissed(_dismissed));
+      await _bestEffort(() => alerts?.setDismissed(_dismissed));
       return null;
     } catch (e) {
       _dismissed = before;
