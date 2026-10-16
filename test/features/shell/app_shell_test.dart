@@ -852,6 +852,26 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Skill 15'), findsNothing);
     });
+
+    testWidgets('saves application details for form filling', (tester) async {
+      await openProfile(
+        tester,
+        const CareerProfile(targetRoles: ['Web Developer']),
+      );
+
+      await tapVisible(tester, find.text('Add details for application forms'));
+      expect(find.text('Application details'), findsWidgets);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'e.g. 0917 123 4567'),
+        '0917 123 4567',
+      );
+      // A focused field keeps scrolling itself back into view.
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Save details'));
+
+      expect(find.text('1 detail saved'), findsOneWidget);
+    });
   });
 
   test('workspace numbers', () {

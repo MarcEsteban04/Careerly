@@ -22,6 +22,10 @@ import '../../applications/data/stale_applications.dart';
 import '../../applications/data/tracked_view.dart';
 import '../../applications/presentation/applications_screen.dart';
 import '../../applications/presentation/stale_applications_sheet.dart';
+import '../../apply/data/applicant_details.dart';
+import '../../apply/data/form_filler.dart';
+import '../../apply/presentation/applicant_details_sheet.dart';
+import '../../apply/presentation/apply_browser_screen.dart';
 import '../../apply/presentation/apply_confirm_dialog.dart';
 import '../../apply/presentation/apply_kit_sheet.dart';
 import '../../auth/data/app_lock_repository.dart';
@@ -36,6 +40,8 @@ import '../../discover/data/search_preferences_repository.dart';
 import '../../discover/data/discover_settings_store.dart';
 import '../../discover/presentation/job_listing_screen.dart';
 import '../../documents/data/career_document.dart';
+import '../../documents/data/document_markup.dart';
+import '../../documents/data/document_pdf.dart';
 import '../../documents/data/documents_repository.dart';
 import '../../goals/data/goal.dart';
 import '../../goals/data/goals_repository.dart';
@@ -103,6 +109,9 @@ class AppShell extends StatefulWidget {
     this.messageWriter,
     this.companyResearcher,
     this.negotiationCoach,
+    this.formFiller,
+    this.applicantDetails,
+    this.applyPage,
     JobShareInbox? shareInbox,
     this.afterSignIn,
   })  : shareInbox = shareInbox ?? const PlatformJobShareInbox(),
@@ -143,6 +152,12 @@ class AppShell extends StatefulWidget {
   final MessageWriter? messageWriter;
   final CompanyResearcher? companyResearcher;
   final NegotiationCoach? negotiationCoach;
+  final FormFiller? formFiller;
+  final ApplicantDetailsStore? applicantDetails;
+
+  /// Opens an application page; defaults to Careerly's own browser with
+  /// form filling. Replaceable in tests, which can't host a web view.
+  final Future<ApplyPageExit> Function(Uri url)? applyPage;
 
   /// Jobs shared into the app from other apps.
   final JobShareInbox shareInbox;
@@ -233,6 +248,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       widget.companyResearcher ?? CompanyResearcher(_ai);
   late final _negotiationCoach =
       widget.negotiationCoach ?? NegotiationCoach(_ai);
+  late final _formFiller = widget.formFiller ?? FormFiller(_ai);
+  late final _applicantDetails =
+      widget.applicantDetails ?? ApplicantDetailsStore();
+
+  /// True while an application page is open in Careerly, so returning
+  /// from a file picker doesn't ask "Did you apply?" too early.
+  bool _applyPageOpen = false;
 
   StreamSubscription<String>? _notificationTaps;
   StreamSubscription<String>? _shares;
@@ -276,7 +298,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _confirmPendingApply();
+      if (!_applyPageOpen) _confirmPendingApply();
       // The background check may have found jobs while we were away.
       _discover.refreshAlerts();
     }
@@ -702,12 +724,80 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           listing: listing,
           choice: choice,
         );
-        final opened = await widget.openUrl(uri);
-        if (!opened) {
-          _pendingApply = null;
-          _showMessage("Couldn't open the application page.");
+        _applyPageOpen = true;
+        final ApplyPageExit exit;
+        try {
+          exit = await (widget.applyPage?.call(uri) ??
+              _openApplyPage(uri, job: job, choice: choice));
+        } finally {
+          _applyPageOpen = false;
         }
+        // From the phone's browser, the question waits until she's back.
+        if (exit == ApplyPageExit.closed) await _confirmPendingApply();
     }
+  }
+
+  /// The application page in Careerly's browser, with form filling.
+  Future<ApplyPageExit> _openApplyPage(
+    Uri uri, {
+    required JobContext job,
+    required ApplyKitChoice choice,
+  }) async {
+    final exit = await Navigator.of(context).push<ApplyPageExit>(
+      MaterialPageRoute(
+        builder: (_) => ApplyBrowserScreen(
+          url: uri,
+          job: job,
+          filler: _formFiller,
+          loadApplicant: () => _applicant(choice),
+          editDetails: _editApplicantDetails,
+          openExternally: widget.openUrl,
+          companyBrief: () async =>
+              (await _companyResearcher.cached(job.company))?.summary,
+          resume: _attachmentFor(choice.resumeDocumentId),
+        ),
+      ),
+    );
+    return exit ?? ApplyPageExit.closed;
+  }
+
+  /// Everything the form filler knows about her.
+  Future<Applicant> _applicant(ApplyKitChoice choice) async {
+    final details = await _applicantDetails.load();
+    String? resume;
+    try {
+      final id = choice.resumeDocumentId;
+      resume = id == null
+          ? await _studio.resumeText()
+          : await _studio.resumeContent(id);
+    } catch (_) {
+      // No resume yet: the form can still be filled from her details.
+    }
+    return Applicant(
+      name: widget.authRepository.currentUserName,
+      email: widget.authRepository.currentUserEmail,
+      details: details,
+      profile: _discover.profile,
+      resumeText: resume == null ? null : markupToPlainText(resume),
+    );
+  }
+
+  /// A saved Studio resume as a PDF to upload. The original upload isn't
+  /// offered: she can pick that file from her phone.
+  ApplyAttachment? _attachmentFor(String? documentId) {
+    if (documentId == null) return null;
+    final doc = _studio.items?.where((d) => d.id == documentId).firstOrNull;
+    if (doc == null || doc.kind != DocumentKind.resume) return null;
+    return ApplyAttachment(
+      fileName: DocumentPdf.fileNameFor(doc.title),
+      bytes: () => DocumentPdf.build(doc.content),
+    );
+  }
+
+  Future<void> _editApplicantDetails() async {
+    final saved =
+        await showApplicantDetailsSheet(context, store: _applicantDetails);
+    if (saved != null) _showMessage('Application details saved');
   }
 
   Future<void> _confirmPendingApply() async {
@@ -872,6 +962,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           onNotificationSettingsChanged: () => _syncReminders(force: true),
           avatars: _avatars,
           onAvatarChanged: () => setState(() {}),
+          applicantDetails: _applicantDetails,
         ),
       ),
     );

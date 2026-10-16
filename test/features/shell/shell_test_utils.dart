@@ -10,6 +10,7 @@ import 'package:careerly/features/agenda/data/agenda_event.dart';
 import 'package:careerly/features/agenda/data/agenda_repository.dart';
 import 'package:careerly/features/applications/data/applications_repository.dart';
 import 'package:careerly/features/applications/data/job_application.dart';
+import 'package:careerly/features/apply/presentation/apply_browser_screen.dart';
 import 'package:careerly/features/auth/data/app_lock_repository.dart';
 import 'package:careerly/core/ai/ai_chain.dart';
 import 'package:careerly/features/applications/data/application_event.dart';
@@ -372,6 +373,7 @@ Future<void> pumpShell(
     ..devicePixelRatio = 3;
   addTearDown(tester.view.reset);
   useInMemoryPrefs();
+  final open = openUrl ?? (_) async => true;
 
   await tester.pumpWidget(
     MaterialApp(
@@ -385,7 +387,12 @@ Future<void> pumpShell(
         discover: discover ?? fakeDiscover(),
         studio: studio ?? fakeStudio(),
         events: events ?? FakeEventsRepository(),
-        openUrl: openUrl ?? (_) async => true,
+        openUrl: open,
+        // Web views can't run in tests: apply pages "open in the browser".
+        applyPage: (url) async {
+          await open(url);
+          return ApplyPageExit.openedExternally;
+        },
         notifications: notifications ?? FakeNotifications(),
         interviewCoach: interviewCoach,
         interviewPreps: interviewPreps ?? FakeInterviewPrepRepository(),

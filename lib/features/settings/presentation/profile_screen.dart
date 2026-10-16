@@ -14,6 +14,8 @@ import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/stat_tile.dart';
 import '../../../core/widgets/user_avatar.dart';
+import '../../apply/data/applicant_details.dart';
+import '../../apply/presentation/applicant_details_sheet.dart';
 import '../../auth/data/app_lock_repository.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../discover/data/discover_controller.dart';
@@ -37,7 +39,11 @@ class ProfileScreen extends StatelessWidget {
     required this.onNotificationSettingsChanged,
     required this.avatars,
     required this.onAvatarChanged,
+    required this.applicantDetails,
   });
+
+  /// The extra details used to fill application forms.
+  final ApplicantDetailsStore applicantDetails;
 
   final AuthRepository authRepository;
   final AppLockRepository appLock;
@@ -100,6 +106,9 @@ class ProfileScreen extends StatelessWidget {
                         resume: profile.resume,
                         onUpload: onEditCareerProfile,
                       ),
+                      const SizedBox(height: AppSpacing.xl),
+                      const SectionHeader(title: 'Application details'),
+                      _ApplicantDetailsCard(store: applicantDetails),
                       const SizedBox(height: AppSpacing.xl),
                       const SectionHeader(title: 'Notifications'),
                       _NotificationsCard(
@@ -922,6 +931,78 @@ class _AppLockTileState extends State<_AppLockTile> {
         value: _enabled && available,
         onChanged: available ? _toggle : null,
       ),
+    );
+  }
+}
+
+/// How much of the application details are filled in; opens the form.
+class _ApplicantDetailsCard extends StatefulWidget {
+  const _ApplicantDetailsCard({required this.store});
+
+  final ApplicantDetailsStore store;
+
+  @override
+  State<_ApplicantDetailsCard> createState() => _ApplicantDetailsCardState();
+}
+
+class _ApplicantDetailsCardState extends State<_ApplicantDetailsCard> {
+  late Future<ApplicantDetails> _details = widget.store.load();
+
+  Future<void> _edit() async {
+    final saved =
+        await showApplicantDetailsSheet(context, store: widget.store);
+    if (saved != null && mounted) {
+      setState(() {
+        _details = Future.value(saved);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return FutureBuilder<ApplicantDetails>(
+      future: _details,
+      builder: (context, snapshot) {
+        final filled = snapshot.data?.filledCount ?? 0;
+        return AppCard(
+          onTap: _edit,
+          child: Row(
+            children: [
+              const IconBadge(icon: Icons.badge_outlined, accent: Accent.teal),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      filled == 0
+                          ? 'Add details for application forms'
+                          : filled == 1
+                              ? '1 detail saved'
+                              : '$filled details saved',
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      'Phone, address, links and school, used by Fill with '
+                      'Careerly. Stays on this phone.',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

@@ -223,8 +223,9 @@ class _ApplyKitState extends State<_ApplyKit> {
           const SizedBox(height: AppSpacing.md),
           _StepLabel(number: 3, text: 'Apply on their site'),
           _Hint(
-            'Tap PDF to save a document for upload, or Copy to paste it. '
-            "When you come back, Careerly will ask if you applied and track it.",
+            'The page opens in Careerly: tap Fill with Careerly to fill the '
+            'form, and attach this resume when it asks for a file. When '
+            "you're done, Careerly asks if you applied and tracks it.",
           ),
           const SizedBox(height: AppSpacing.md),
           PrimaryButton(

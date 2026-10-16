@@ -26,6 +26,8 @@ dependencies:
   supabase_flutter: ^2.18.3
   timezone: ^0.11.2
   url_launcher: ^6.3.3
+  webview_flutter: ^4.14.1
+  webview_flutter_android: ^4.14.1
   workmanager: ^0.10.10
 
 dev_dependencies:
