@@ -36,15 +36,19 @@ class UserAvatar extends StatelessWidget {
       ),
     );
     final url = photoUrl;
+    // The ring sits inside the avatar's size, so the photo is clipped to
+    // its own circle (clipping the outer box would leave the inset photo a
+    // rounded square).
+    final ringWidth = ring ? 3.0 : 0.0;
+    final photoSize = radius * 2 - ringWidth * 2;
 
     return Container(
       width: radius * 2,
       height: radius * 2,
-      clipBehavior: Clip.antiAlias,
+      padding: EdgeInsets.all(ringWidth),
       decoration: BoxDecoration(
-        color: AppColors.ink,
+        color: ring ? Colors.white : null,
         shape: BoxShape.circle,
-        border: ring ? Border.all(color: Colors.white, width: 3) : null,
         boxShadow: ring
             ? [
                 BoxShadow(
@@ -55,20 +59,26 @@ class UserAvatar extends StatelessWidget {
               ]
             : null,
       ),
-      child: url == null
-          ? fallback
-          : Image.network(
-              url,
-              fit: BoxFit.cover,
-              width: radius * 2,
-              height: radius * 2,
-              // Decode at display size, not the upload's full resolution.
-              cacheWidth: (radius * 2 * MediaQuery.devicePixelRatioOf(context))
-                  .round(),
-              errorBuilder: (_, _, _) => fallback,
-              loadingBuilder: (context, child, progress) =>
-                  progress == null ? child : fallback,
-            ),
+      child: ClipOval(
+        child: ColoredBox(
+          color: AppColors.ink,
+          child: url == null
+              ? fallback
+              : Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  width: photoSize,
+                  height: photoSize,
+                  // Decode at display size, not the upload's full resolution.
+                  cacheWidth:
+                      (photoSize * MediaQuery.devicePixelRatioOf(context))
+                          .round(),
+                  errorBuilder: (_, _, _) => fallback,
+                  loadingBuilder: (context, child, progress) =>
+                      progress == null ? child : fallback,
+                ),
+        ),
+      ),
     );
   }
 }
