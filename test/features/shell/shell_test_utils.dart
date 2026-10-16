@@ -366,6 +366,7 @@ Future<void> pumpShell(
   CompanyResearcher? companyResearcher,
   NegotiationCoach? negotiationCoach,
   CareerCoach? careerCoach,
+  FakeAuthRepository? auth,
 }) async {
   tester.platformDispatcher.accessibilityFeaturesTestValue =
       const FakeAccessibilityFeatures(disableAnimations: true);
@@ -379,9 +380,10 @@ Future<void> pumpShell(
 
   await tester.pumpWidget(
     MaterialApp(
+      debugShowCheckedModeBanner: false,
       theme: theme ?? AppTheme.light,
       home: AppShell(
-        authRepository: FakeDashboardAuth(),
+        authRepository: auth ?? FakeDashboardAuth(),
         appLock: FakeAppLock(),
         applications: applications,
         agenda: agenda ?? FakeAgendaRepository(),
