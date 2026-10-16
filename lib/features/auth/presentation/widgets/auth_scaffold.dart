@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/circle_icon_button.dart';
 import '../../../../core/widgets/emphasis_text.dart';
-import '../../../../core/widgets/header_wash.dart';
+import '../../../../core/widgets/hero_header.dart';
 
 /// Fades and lifts [child] in during the screen's intro, between [begin] and
 /// [end] (fractions of the intro).
@@ -103,18 +103,15 @@ class _AuthScaffoldState extends State<AuthScaffold>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          HeaderWash(
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.md,
-                  AppSpacing.lg,
-                  AppSpacing.xl + _sheetRadius,
-                ),
-                child: _reveal(0, 0.6, _buildHeader()),
-              ),
+          HeroHeader(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.md,
+              AppSpacing.lg,
+              AppSpacing.xl + _sheetRadius,
+            ),
+            child: Builder(
+              builder: (context) => _reveal(0, 0.6, _buildHeader(context)),
             ),
           ),
           Transform.translate(
@@ -136,7 +133,8 @@ class _AuthScaffoldState extends State<AuthScaffold>
   }
 
   Widget _buildWide() {
-    return HeaderWash(
+    return ColoredBox(
+      color: Theme.of(context).scaffoldBackgroundColor,
       child: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.xl),
@@ -145,14 +143,13 @@ class _AuthScaffoldState extends State<AuthScaffold>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _reveal(0, 0.6, _buildHeader()),
+                _reveal(0, 0.6, _buildHeader(context)),
                 const SizedBox(height: AppSpacing.xl),
                 _reveal(
                   0.15,
                   0.9,
                   _Sheet(
                     borderRadius: BorderRadius.circular(_sheetRadius),
-                    topBorderOnly: false,
                     child: widget.builder(context, _reveal),
                   ),
                 ),
@@ -164,7 +161,7 @@ class _AuthScaffoldState extends State<AuthScaffold>
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     final theme = Theme.of(context);
 
     return Column(
@@ -180,8 +177,18 @@ class _AuthScaffoldState extends State<AuthScaffold>
               ),
               const Spacer(),
             ],
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
               child: Image.asset(
                 _logoAsset,
                 width: 36,
@@ -203,7 +210,8 @@ class _AuthScaffoldState extends State<AuthScaffold>
         const SizedBox(height: AppSpacing.xl),
         EmphasisText(
           widget.headline,
-          style: theme.textTheme.headlineMedium?.copyWith(fontSize: 30),
+          emphasisColor: theme.colorScheme.secondary,
+          style: theme.textTheme.headlineMedium?.copyWith(fontSize: 32),
         ),
         if (widget.subtitle != null) ...[
           const SizedBox(height: AppSpacing.xs),
@@ -223,15 +231,10 @@ class _Sheet extends StatelessWidget {
   const _Sheet({
     required this.borderRadius,
     required this.child,
-    this.topBorderOnly = true,
   });
 
   final BorderRadius borderRadius;
   final Widget child;
-
-  /// Stacked layout: only the top edge is outlined, so the sheet blends
-  /// into the page below it.
-  final bool topBorderOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -242,9 +245,13 @@ class _Sheet extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: borderRadius,
-        border: topBorderOnly
-            ? Border(top: BorderSide(color: colorScheme.outline))
-            : Border.all(color: colorScheme.outline),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 30,
+            offset: const Offset(0, -6),
+          ),
+        ],
       ),
       padding: EdgeInsets.fromLTRB(
         AppSpacing.lg,

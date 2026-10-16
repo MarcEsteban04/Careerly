@@ -19,8 +19,8 @@ class FloatingNavItem {
 }
 
 /// Frosted dark tab bar that floats above content. The active tab grows
-/// into a blue pill with its label; the others stay as icons. A separate
-/// round "+" button sits to the right.
+/// into a white pill with its label; the others stay as icons. A separate
+/// round teal "+" button sits to the right.
 class FloatingNavBar extends StatelessWidget {
   const FloatingNavBar({
     super.key,
@@ -203,9 +203,8 @@ class _NavButtonState extends State<_NavButton> {
     final duration = widget.reduceMotion
         ? Duration.zero
         : const Duration(milliseconds: 340);
-    final iconColor = selected
-        ? Colors.white
-        : Colors.white.withValues(alpha: 0.58);
+    final iconColor =
+        selected ? AppColors.ink : Colors.white.withValues(alpha: 0.6);
 
     return Tooltip(
       message: widget.item.label,
@@ -232,22 +231,7 @@ class _NavButtonState extends State<_NavButton> {
               margin: const EdgeInsets.symmetric(horizontal: 2),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(FloatingNavBar.height),
-                gradient: selected
-                    ? const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF3B82F6), AppColors.brand],
-                      )
-                    : null,
-                boxShadow: selected
-                    ? [
-                        BoxShadow(
-                          color: AppColors.brand.withValues(alpha: 0.45),
-                          blurRadius: 14,
-                          offset: const Offset(0, 4),
-                        ),
-                      ]
-                    : null,
+                color: selected ? Colors.white : Colors.transparent,
               ),
               child: ClipRect(
                 child: Row(
@@ -280,7 +264,7 @@ class _NavButtonState extends State<_NavButton> {
                               overflow: TextOverflow.fade,
                               softWrap: false,
                               style: theme.textTheme.labelLarge?.copyWith(
-                                color: Colors.white,
+                                color: AppColors.ink,
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -338,7 +322,7 @@ class _BadgedIcon extends StatelessWidget {
                 style: const TextStyle(
                   color: AppColors.ink,
                   fontSize: 9.5,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   height: 1,
                 ),
               ),
@@ -391,26 +375,18 @@ class _AddButtonState extends State<_AddButton> {
                 height: size,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
-                  ),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.22),
-                    width: 1.5,
-                  ),
+                  color: AppColors.accent,
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.brand.withValues(alpha: 0.45),
-                      blurRadius: 24,
-                      offset: const Offset(0, 12),
+                      color: Colors.black.withValues(alpha: 0.18),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
                     ),
                   ],
                 ),
                 child: const Icon(
                   Icons.add_rounded,
-                  color: Colors.white,
+                  color: AppColors.ink,
                   size: 32,
                 ),
               ),

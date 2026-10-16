@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_accents.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/icon_badge.dart';
 import '../../data/resume_versions.dart';
 
 enum ResumeVersionAction { open, atsCheck, rename, duplicate, delete }
@@ -71,24 +73,12 @@ class _VersionRow extends StatelessWidget {
             ? ResumeVersionAction.atsCheck
             : ResumeVersionAction.open,
       ),
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: version.isOriginal
-              ? colorScheme.primary.withValues(alpha: 0.12)
-              : colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(AppRadius.sm + 2),
-        ),
-        child: Icon(
-          version.isOriginal
-              ? Icons.upload_file_rounded
-              : Icons.description_outlined,
-          size: 20,
-          color: version.isOriginal
-              ? colorScheme.primary
-              : colorScheme.onSurfaceVariant,
-        ),
+      leading: IconBadge(
+        icon: version.isOriginal
+            ? Icons.upload_file_rounded
+            : Icons.description_rounded,
+        accent: isBest ? Accent.emerald : Accent.violet,
+        size: 40,
       ),
       title: Text(
         version.title,

@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/theme/app_accents.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/bottom_action_bar.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/widgets/circle_icon_button.dart';
+import '../../../core/widgets/hero_header.dart';
+import '../../../core/widgets/hero_top_bar.dart';
 import '../../../core/widgets/primary_button.dart';
+import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../../core/widgets/segmented_tabs.dart';
 import '../../../core/widgets/tag_pill.dart';
 import '../data/discover_controller.dart';
+import '../data/job_listing.dart';
 import '../data/job_matcher.dart';
 import 'widgets/company_logo.dart';
 import 'widgets/match_breakdown.dart';
@@ -85,143 +91,32 @@ class _JobListingScreenState extends State<JobListingScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final job = widget.ranked.listing;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: Column(
+      body: ScrollAwareStatusBar(
+        threshold: 120,
+        child: ListView(
+          padding: EdgeInsets.only(bottom: 120 + bottomInset),
           children: [
-            Padding(
+            HeroHeader(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg,
                 AppSpacing.sm,
                 AppSpacing.lg,
-                AppSpacing.sm,
+                AppSpacing.lg,
               ),
-              child: Row(
-                children: [
-                  CircleIconButton(
-                    icon: Icons.arrow_back_rounded,
-                    tooltip: 'Back',
-                    onPressed: () => Navigator.of(context).maybePop(),
-                  ),
-                  Expanded(
-                    child: Text(
-                      'Job Detail',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleMedium,
-                    ),
-                  ),
-                  PopupMenuButton<String>(
-                    tooltip: 'More',
-                    onSelected: (value) {
-                      if (value == 'open') _apply();
-                      if (value == 'hide') {
-                        widget.onNotInterested();
-                        Navigator.of(context).maybePop();
-                      }
-                    },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem(
-                        value: 'open',
-                        child: ListTile(
-                          leading: Icon(Icons.open_in_new_rounded),
-                          title: Text('Open job post'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'hide',
-                        child: ListTile(
-                          leading: Icon(Icons.thumb_down_alt_outlined),
-                          title: Text('Not interested'),
-                        ),
-                      ),
-                    ],
-                    child: const IgnorePointer(
-                      child: CircleIconButton(
-                        icon: Icons.more_horiz_rounded,
-                        tooltip: 'More',
-                        onPressed: null,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              // Built under the hero so text and buttons pick up its look.
+              child: Builder(builder: (context) => _buildHero(context, job)),
             ),
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.sm,
-                  AppSpacing.lg,
-                  120 + bottomInset,
-                ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CompanyLogo(
-                        company: job.company,
-                        url: job.companyLogoUrl,
-                        size: 56,
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              job.title,
-                              style: theme.textTheme.titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              [
-                                job.company,
-                                if (job.location != null) job.location!,
-                              ].join('  •  '),
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: _isSaved ? 'Saved to tracker' : 'Save to tracker',
-                        onPressed: _save,
-                        icon: Icon(
-                          _isSaved
-                              ? Icons.bookmark_rounded
-                              : Icons.bookmark_border_rounded,
-                          color: _isSaved ? colorScheme.primary : null,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Wrap(
-                    spacing: AppSpacing.xs,
-                    runSpacing: AppSpacing.xs,
-                    children: [
-                      if (job.employmentType != null)
-                        TagPill(label: job.employmentType!),
-                      if (JobMatcher.looksRemote(job))
-                        const TagPill(label: 'Remote'),
-                      if (job.salary != null) TagPill(label: job.salary!),
-                      TagPill(label: 'via ${job.source}'),
-                      if (job.postedAt != null || job.postedLabel != null)
-                        TagPill(
-                          label: job.postedAt?.agoLabel() ?? job.postedLabel!,
-                        ),
-                    ],
-                  ),
                   if (widget.ranked.scam.isFlagged) ...[
-                    const SizedBox(height: AppSpacing.md),
+                    const SizedBox(height: AppSpacing.lg),
                     ScamBanner(check: widget.ranked.scam),
                   ],
                   const SizedBox(height: AppSpacing.lg),
@@ -248,14 +143,7 @@ class _JobListingScreenState extends State<JobListingScreen> {
           ],
         ),
       ),
-      bottomSheet: Container(
-        color: colorScheme.surface,
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.sm,
-          AppSpacing.lg,
-          AppSpacing.sm + bottomInset,
-        ),
+      bottomSheet: BottomActionBar(
         child: Row(
           children: [
             Expanded(
@@ -276,6 +164,111 @@ class _JobListingScreenState extends State<JobListingScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildHero(BuildContext context, JobListing job) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final match = widget.ranked.match;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        HeroTopBar(
+          title: 'Job Detail',
+          trailing: PopupMenuButton<String>(
+            tooltip: 'More',
+            onSelected: (value) {
+              if (value == 'open') _apply();
+              if (value == 'hide') {
+                widget.onNotInterested();
+                Navigator.of(context).maybePop();
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'open',
+                child: ListTile(
+                  leading: Icon(Icons.open_in_new_rounded),
+                  title: Text('Open job post'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'hide',
+                child: ListTile(
+                  leading: Icon(Icons.thumb_down_alt_outlined),
+                  title: Text('Not interested'),
+                ),
+              ),
+            ],
+            child: const IgnorePointer(
+              child: CircleIconButton(
+                icon: Icons.more_horiz_rounded,
+                tooltip: 'More',
+                onPressed: null,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CompanyLogo(company: job.company, url: job.companyLogoUrl, size: 56),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    job.title,
+                    style: theme.textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    [
+                      job.company,
+                      if (job.location != null) job.location!,
+                    ].join('  •  '),
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(color: colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: _isSaved ? 'Saved to tracker' : 'Save to tracker',
+              onPressed: _save,
+              style: IconButton.styleFrom(
+                backgroundColor:
+                    _isSaved ? colorScheme.primary : colorScheme.surface,
+                side: BorderSide(color: colorScheme.outline),
+              ),
+              icon: Icon(
+                _isSaved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+                color: _isSaved ? colorScheme.onPrimary : colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Wrap(
+          spacing: AppSpacing.xs,
+          runSpacing: AppSpacing.xs,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (match != null) _MatchChip(score: match.score),
+            if (job.employmentType != null) TagPill(label: job.employmentType!),
+            if (JobMatcher.looksRemote(job)) const TagPill(label: 'Remote'),
+            if (job.salary != null) TagPill(label: job.salary!),
+            TagPill(label: 'via ${job.source}'),
+            if (job.postedAt != null || job.postedLabel != null)
+              TagPill(label: job.postedAt?.agoLabel() ?? job.postedLabel!),
+          ],
+        ),
+      ],
     );
   }
 
@@ -452,6 +445,41 @@ class _Bullet extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
                 height: 1.5,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The match score as a soft teal chip.
+class _MatchChip extends StatelessWidget {
+  const _MatchChip({required this.score});
+
+  final int score;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tone = Accent.teal.colorIn(theme.brightness);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Accent.teal.tintIn(theme.brightness),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.auto_awesome_rounded, size: 14, color: tone),
+          const SizedBox(width: 4),
+          Text(
+            '$score% match',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: tone,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],

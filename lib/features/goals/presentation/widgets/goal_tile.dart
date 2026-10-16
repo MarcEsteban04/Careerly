@@ -27,7 +27,7 @@ class GoalTile extends StatelessWidget {
       child: Row(
         children: [
           SizedBox.square(
-            dimension: 48,
+            dimension: 52,
             child: Stack(
               alignment: Alignment.center,
               children: [
@@ -37,13 +37,13 @@ class GoalTile extends StatelessWidget {
                   curve: Curves.easeOutCubic,
                   builder: (context, value, _) => CircularProgressIndicator(
                     value: value,
-                    strokeWidth: 5,
+                    strokeWidth: 6,
                     strokeCap: StrokeCap.round,
                     color: ringColor,
                     backgroundColor: colorScheme.surfaceContainerHighest,
                     constraints: const BoxConstraints.tightFor(
-                      width: 48,
-                      height: 48,
+                      width: 52,
+                      height: 52,
                     ),
                   ),
                 ),
@@ -66,7 +66,8 @@ class GoalTile extends StatelessWidget {
                   goal.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium,
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -78,10 +79,31 @@ class GoalTile extends StatelessWidget {
             ),
           ),
           if (!done)
-            IconButton.filledTonal(
-              tooltip: 'Log progress',
-              onPressed: onIncrement,
-              icon: const Icon(Icons.add_rounded),
+            Tooltip(
+              message: 'Log progress',
+              child: Semantics(
+                button: true,
+                label: 'Log progress',
+                excludeSemantics: true,
+                child: Material(
+                  type: MaterialType.transparency,
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: Ink(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: colorScheme.primary,
+                      boxShadow: AppShadows.raised(theme.brightness),
+                    ),
+                    child: InkWell(
+                      onTap: onIncrement,
+                      child: Icon(Icons.add_rounded, color: colorScheme.onPrimary),
+                    ),
+                  ),
+                ),
+              ),
             ),
         ],
       ),

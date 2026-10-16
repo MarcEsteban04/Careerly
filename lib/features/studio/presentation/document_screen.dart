@@ -3,8 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/bottom_action_bar.dart';
 import '../../../core/utils/error_message.dart';
 import '../../../core/widgets/circle_icon_button.dart';
+import '../../../core/widgets/hero_header.dart';
+import '../../../core/widgets/hero_top_bar.dart';
+import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/segmented_tabs.dart';
 import '../../documents/data/career_document.dart';
@@ -239,61 +243,62 @@ class _DocumentScreenState extends State<DocumentScreen> {
         }
       },
       child: Scaffold(
-        body: SafeArea(
-          bottom: false,
-          child: Column(
+        body: ScrollAwareStatusBar(
+          threshold: 120,
+          child: ListView(
+            padding: EdgeInsets.only(bottom: 120 + bottomInset),
             children: [
-              Padding(
+              HeroHeader(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.lg,
                   AppSpacing.sm,
                   AppSpacing.lg,
-                  AppSpacing.sm,
+                  AppSpacing.lg,
                 ),
-                child: Row(
-                  children: [
-                    CircleIconButton(
-                      icon: Icons.arrow_back_rounded,
-                      tooltip: 'Back',
-                      onPressed: () => Navigator.of(context).maybePop(),
-                    ),
-                    Expanded(
-                      child: Text(
-                        widget.kind.label,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.titleMedium,
-                      ),
-                    ),
-                    CircleIconButton(
-                      icon: Icons.copy_rounded,
-                      tooltip: 'Copy text',
-                      onPressed: _copy,
-                    ),
-                  ],
+                child: Builder(
+                  builder: (context) {
+                    final theme = Theme.of(context);
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        HeroTopBar(
+                          title: widget.kind.label,
+                          trailing: CircleIconButton(
+                            icon: Icons.copy_rounded,
+                            tooltip: 'Copy text',
+                            onPressed: _copy,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        Text(
+                          widget.title,
+                          style: theme.textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        if (widget.provider != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'Drafted by ${widget.provider}. Review before sending.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ],
+                    );
+                  },
                 ),
               ),
-              Expanded(
-                child: ListView(
-                  padding: EdgeInsets.fromLTRB(
-                    AppSpacing.lg,
-                    AppSpacing.sm,
-                    AppSpacing.lg,
-                    120 + bottomInset,
-                  ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.xs,
+                  AppSpacing.lg,
+                  0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      widget.title,
-                      style: theme.textTheme.titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    if (widget.provider != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        'Drafted by ${widget.provider}. Review before sending.',
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: colorScheme.onSurfaceVariant),
-                      ),
-                    ],
                     if (widget.changes.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.md),
                       _ChangesCard(changes: widget.changes),
@@ -363,14 +368,7 @@ class _DocumentScreenState extends State<DocumentScreen> {
             ],
           ),
         ),
-        bottomSheet: Container(
-          color: colorScheme.surface,
-          padding: EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.sm,
-            AppSpacing.lg,
-            AppSpacing.sm + bottomInset,
-          ),
+        bottomSheet: BottomActionBar(
           child: Row(
             children: [
               Expanded(

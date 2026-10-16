@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_accents.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/widgets/icon_badge.dart';
 
 enum QuickAddAction { jobLink, application, agendaEvent, goal }
 
@@ -26,24 +28,28 @@ Future<QuickAddAction?> showQuickAddSheet(BuildContext context) {
             _Option(
               action: QuickAddAction.jobLink,
               icon: Icons.link_rounded,
+              accent: Accent.blue,
               title: 'Job from a link',
               subtitle: 'Paste a LinkedIn, JobStreet or Indeed link',
             ),
             _Option(
               action: QuickAddAction.application,
               icon: Icons.work_outline_rounded,
+              accent: Accent.violet,
               title: 'Application',
               subtitle: 'Type in a role you saved or applied for',
             ),
             _Option(
               action: QuickAddAction.agendaEvent,
               icon: Icons.event_outlined,
+              accent: Accent.teal,
               title: 'Interview or reminder',
               subtitle: 'Interviews, follow-ups and deadlines',
             ),
             _Option(
               action: QuickAddAction.goal,
               icon: Icons.flag_outlined,
+              accent: Accent.amber,
               title: 'Goal',
               subtitle: 'A target to keep you moving',
             ),
@@ -58,19 +64,19 @@ class _Option extends StatelessWidget {
   const _Option({
     required this.action,
     required this.icon,
+    required this.accent,
     required this.title,
     required this.subtitle,
   });
 
   final QuickAddAction action;
   final IconData icon;
+  final Accent accent;
   final String title;
   final String subtitle;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return ListTile(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadius.md),
@@ -79,16 +85,11 @@ class _Option extends StatelessWidget {
         horizontal: AppSpacing.sm,
         vertical: AppSpacing.xxs,
       ),
-      leading: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: colorScheme.primary.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(AppRadius.sm + 2),
-        ),
-        child: Icon(icon, color: colorScheme.primary),
+      leading: IconBadge(icon: icon, accent: accent),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w600),
       ),
-      title: Text(title),
       subtitle: Text(subtitle),
       trailing: const Icon(Icons.chevron_right_rounded),
       onTap: () => Navigator.of(context).pop(action),

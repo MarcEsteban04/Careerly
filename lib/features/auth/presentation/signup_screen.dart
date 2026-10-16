@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/form_banner.dart';
+import '../../../core/widgets/icon_badge.dart';
 import '../../../core/widgets/labeled_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/shake_effect.dart';
@@ -291,18 +292,9 @@ class _SignupScreenState extends State<SignupScreen> {
       children: [
         Align(
           alignment: Alignment.centerLeft,
-          child: Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: colorScheme.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-            ),
-            child: Icon(
-              Icons.mark_email_unread_outlined,
-              size: 30,
-              color: colorScheme.primary,
-            ),
+          child: const IconBadge(
+            icon: Icons.mark_email_unread_rounded,
+            size: 64,
           ),
         ),
         const SizedBox(height: AppSpacing.lg),

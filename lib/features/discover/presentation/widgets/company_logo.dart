@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_spacing.dart';
 import '../../../applications/presentation/widgets/company_avatar.dart';
 
 /// Employer logo from the job board, falling back to the company initial.
@@ -28,7 +27,7 @@ class CompanyLogo extends StatelessWidget {
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.sm + 2),
+        borderRadius: BorderRadius.circular(size * 0.3),
         border: Border.all(color: Theme.of(context).colorScheme.outline),
       ),
       child: Image.network(

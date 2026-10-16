@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_accents.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/error_message.dart';
 import '../../../core/widgets/app_card.dart';
@@ -8,6 +10,7 @@ import '../../../core/widgets/choice_chip_group.dart';
 import '../../../core/widgets/emphasis_text.dart';
 import '../../../core/widgets/form_banner.dart';
 import '../../../core/widgets/header_wash.dart';
+import '../../../core/widgets/icon_badge.dart';
 import '../../../core/widgets/labeled_field.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/tag_input.dart';
@@ -573,13 +576,12 @@ class _TopBar extends StatelessWidget {
                             Expanded(
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 250),
-                                height: 4,
+                                height: 6,
                                 decoration: BoxDecoration(
                                   color: i <= position
-                                      ? colorScheme.primary
-                                      : colorScheme.primary
-                                          .withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(2),
+                                      ? AppColors.accent
+                                      : colorScheme.outline,
+                                  borderRadius: BorderRadius.circular(3),
                                 ),
                               ),
                             ),
@@ -620,6 +622,7 @@ class _StepLayout extends StatelessWidget {
       children: [
         EmphasisText(
           headline,
+          emphasisColor: theme.colorScheme.secondary,
           style: theme.textTheme.headlineMedium?.copyWith(fontSize: 28),
         ),
         const SizedBox(height: AppSpacing.xs),
@@ -663,6 +666,7 @@ class _WelcomeStep extends StatelessWidget {
           name == null
               ? 'Welcome to **Careerly**'
               : 'Hi $name, welcome to **Careerly**',
+          emphasisColor: theme.colorScheme.secondary,
           style: theme.textTheme.headlineMedium?.copyWith(fontSize: 30),
         ),
         const SizedBox(height: AppSpacing.xs),
@@ -675,17 +679,20 @@ class _WelcomeStep extends StatelessWidget {
         const SizedBox(height: AppSpacing.xl),
         const _Feature(
           icon: Icons.travel_explore_rounded,
+          accent: Accent.blue,
           title: 'Jobs picked for you',
           subtitle: 'From LinkedIn, Indeed, JobStreet and more, scored '
               'against your profile.',
         ),
         const _Feature(
           icon: Icons.auto_awesome_rounded,
+          accent: Accent.violet,
           title: 'AI that writes with you',
           subtitle: 'Tailored resumes, cover letters and interview prep.',
         ),
         const _Feature(
           icon: Icons.notifications_active_outlined,
+          accent: Accent.amber,
           title: 'Nothing slips through',
           subtitle: 'Reminders before interviews and alerts for new jobs.',
         ),
@@ -697,11 +704,13 @@ class _WelcomeStep extends StatelessWidget {
 class _Feature extends StatelessWidget {
   const _Feature({
     required this.icon,
+    required this.accent,
     required this.title,
     required this.subtitle,
   });
 
   final IconData icon;
+  final Accent accent;
   final String title;
   final String subtitle;
 
@@ -715,16 +724,7 @@ class _Feature extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              border: Border.all(color: colorScheme.outlineVariant),
-            ),
-            child: Icon(icon, color: colorScheme.primary, size: 22),
-          ),
+          IconBadge(icon: icon, accent: accent),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
@@ -767,11 +767,10 @@ class _ToggleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return AppCard(
       padding: EdgeInsets.zero,
       child: SwitchListTile(
-        secondary: Icon(icon, color: colorScheme.primary),
+        secondary: IconBadge(icon: icon, size: 40),
         title: Text(title),
         subtitle: Text(subtitle),
         value: value,
@@ -829,20 +828,19 @@ class _DoneStep extends StatelessWidget {
           builder: (context, scale, child) =>
               Transform.scale(scale: scale, child: child),
           child: Container(
-            width: 88,
-            height: 88,
+            width: 96,
+            height: 96,
             decoration: BoxDecoration(
               color: colorScheme.primary,
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: colorScheme.primary.withValues(alpha: 0.35),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+              border: Border.all(color: AppColors.accent, width: 4),
+              boxShadow: AppShadows.raised(theme.brightness),
             ),
-            child: Icon(Icons.check_rounded, size: 48, color: colorScheme.onPrimary),
+            child: Icon(
+              Icons.check_rounded,
+              size: 52,
+              color: colorScheme.onPrimary,
+            ),
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -851,6 +849,7 @@ class _DoneStep extends StatelessWidget {
               ? "You're **all set**!"
               : "You're **all set**, $firstName!",
           textAlign: TextAlign.center,
+          emphasisColor: colorScheme.secondary,
           style: theme.textTheme.headlineMedium?.copyWith(fontSize: 28),
         ),
         const SizedBox(height: AppSpacing.xs),

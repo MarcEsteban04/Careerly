@@ -21,9 +21,8 @@ class TagPill extends StatelessWidget {
         vertical: AppSpacing.xxs,
       ),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(AppRadius.sm - 2),
-        border: Border.all(color: theme.colorScheme.outline),
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppRadius.sm - 4),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

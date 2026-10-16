@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_accents.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/widgets/icon_badge.dart';
 import '../../../../core/widgets/primary_button.dart';
 
 /// Asks once, after the first password sign-in, whether to turn on biometric
@@ -37,18 +39,10 @@ class _EnableAppLockSheet extends StatelessWidget {
           children: [
             Align(
               alignment: Alignment.centerLeft,
-              child: Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: colorScheme.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
-                child: Icon(
-                  Icons.fingerprint_rounded,
-                  size: 30,
-                  color: colorScheme.primary,
-                ),
+              child: const IconBadge(
+                icon: Icons.fingerprint_rounded,
+                accent: Accent.violet,
+                size: 56,
               ),
             ),
             const SizedBox(height: AppSpacing.md),

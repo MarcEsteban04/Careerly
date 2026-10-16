@@ -36,11 +36,13 @@ class TrayCard extends StatelessWidget {
       child: Material(
         color: isSelected
             ? colorScheme.primary.withValues(alpha: 0.10)
-            : colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+            : colorScheme.surfaceContainerHighest,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.lg),
           side: BorderSide(
-            color: isSelected ? colorScheme.primary : colorScheme.outline,
+            color: isSelected
+                ? colorScheme.primary
+                : colorScheme.outlineVariant.withValues(alpha: 0.5),
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -50,7 +52,7 @@ class TrayCard extends StatelessWidget {
           onLongPress: onLongPress,
           child: Stack(
             children: [
-              _content(colorScheme),
+              _content(Theme.of(context)),
               if (selected != null)
                 Positioned(
                   top: AppSpacing.sm,
@@ -87,17 +89,26 @@ class TrayCard extends StatelessWidget {
     );
   }
 
-  Widget _content(ColorScheme colorScheme) => Padding(
-    padding: const EdgeInsets.all(AppSpacing.xxs),
+  Widget _content(ThemeData theme) => Padding(
+    padding: const EdgeInsets.all(AppSpacing.xxs + 1),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Container(
           padding: const EdgeInsets.all(AppSpacing.sm + 2),
           decoration: BoxDecoration(
-            color: colorScheme.surface,
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(color: colorScheme.outline),
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(AppRadius.lg - 5),
+            border: theme.brightness == Brightness.dark
+                ? Border.all(color: theme.colorScheme.outline)
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
           // Keep the text clear of the check circle while selecting.
           child: selected == null
@@ -160,12 +171,12 @@ class TrayBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xs,
-        vertical: 3,
+        horizontal: AppSpacing.xs + 2,
+        vertical: 4,
       ),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
+        color: color.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label.toUpperCase(),

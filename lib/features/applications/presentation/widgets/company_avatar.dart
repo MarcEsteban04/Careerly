@@ -1,23 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_accents.dart';
 
-/// Company initial in a bordered tile, tinted by a stable color per company.
+/// Company initial on a soft tile, in a stable color per company so the
+/// same employer always looks the same.
 class CompanyAvatar extends StatelessWidget {
   const CompanyAvatar({super.key, required this.company, this.size = 44});
 
   final String company;
   final double size;
-
-  static const _palette = [
-    Color(0xFF2563EB),
-    Color(0xFFEA580C),
-    Color(0xFF16A34A),
-    Color(0xFF9333EA),
-    Color(0xFFDC2626),
-    Color(0xFF0891B2),
-    Color(0xFFCA8A04),
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -25,21 +16,21 @@ class CompanyAvatar extends StatelessWidget {
     final trimmed = company.trim();
     final initial =
         trimmed.isEmpty ? '?' : trimmed.characters.first.toUpperCase();
-    final color = _palette[trimmed.toLowerCase().hashCode.abs() % _palette.length];
+    final accent =
+        Accent.values[trimmed.toLowerCase().hashCode.abs() % Accent.values.length];
 
     return Container(
       width: size,
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(AppRadius.sm + 2),
-        border: Border.all(color: theme.colorScheme.outline),
+        color: accent.tintIn(theme.brightness),
+        borderRadius: BorderRadius.circular(size * 0.3),
       ),
       child: Text(
         initial,
         style: theme.textTheme.titleMedium?.copyWith(
-          color: color,
+          color: accent.colorIn(theme.brightness),
           fontWeight: FontWeight.w700,
           fontSize: size * 0.42,
         ),

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/theme/app_accents.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/error_message.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
-import '../../../core/widgets/header_wash.dart';
+import '../../../core/widgets/icon_badge.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/tab_page.dart';
 import '../../applications/data/job_application.dart';
@@ -162,13 +163,12 @@ class StudioScreen extends StatelessWidget {
           title: 'Studio',
           subtitle: 'AI resumes, cover letters and interview prep',
           onRefresh: studio.load,
+          heroChild: _ResumeCard(
+            resume: resume,
+            hasText: studio.hasResumeText,
+            onUpload: onUploadResume,
+          ),
           children: [
-            _ResumeCard(
-              resume: resume,
-              hasText: studio.hasResumeText,
-              onUpload: onUploadResume,
-            ),
-            const SizedBox(height: AppSpacing.md),
             IntrinsicHeight(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -178,6 +178,7 @@ class StudioScreen extends StatelessWidget {
                       icon: Icons.auto_fix_high_rounded,
                       title: 'Enhance resume',
                       subtitle: 'Stronger bullets for a target role',
+                      accent: Accent.violet,
                       onTap: onEnhanceResume,
                     ),
                   ),
@@ -187,6 +188,7 @@ class StudioScreen extends StatelessWidget {
                       icon: Icons.edit_note_rounded,
                       title: 'Cover letter',
                       subtitle: 'Tailored to a specific job',
+                      accent: Accent.blue,
                       onTap: onWriteCoverLetter,
                     ),
                   ),
@@ -196,6 +198,7 @@ class StudioScreen extends StatelessWidget {
                       icon: Icons.record_voice_over_outlined,
                       title: 'Interview prep',
                       subtitle: 'Practice questions for a job you track',
+                      accent: Accent.amber,
                       onTap: onInterviewPrep,
                     ),
                   ),
@@ -265,6 +268,7 @@ class StudioScreen extends StatelessWidget {
   }
 }
 
+/// The uploaded resume as a card in the header, with upload/replace.
 class _ResumeCard extends StatelessWidget {
   const _ResumeCard({
     required this.resume,
@@ -283,72 +287,60 @@ class _ResumeCard extends StatelessWidget {
     final resume = this.resume;
     final needsUpload = resume == null || !hasText;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      child: HeaderWash(
-        child: Container(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            border: Border.all(color: colorScheme.outline),
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm + 2),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg - 4),
+        border: Border.all(color: colorScheme.outline),
+        boxShadow: AppShadows.card(theme.brightness),
+      ),
+      child: Row(
+        children: [
+          IconBadge(
+            icon: needsUpload
+                ? Icons.upload_file_rounded
+                : Icons.description_rounded,
+            size: 48,
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: colorScheme.primary,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  needsUpload ? 'Add your resume' : resume.fileName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
-                child: Icon(
+                Text(
                   needsUpload
-                      ? Icons.upload_file_rounded
-                      : Icons.description_outlined,
-                  color: colorScheme.onPrimary,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      needsUpload ? 'Add your resume' : resume.fileName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium,
-                    ),
-                    Text(
-                      needsUpload
-                          ? resume == null
-                                ? 'Upload a PDF to unlock AI writing.'
-                                : 'Re-upload it so AI can work from the full text.'
-                          : resume.headline ??
-                                'Uploaded ${DateFormat('MMM d').format(resume.uploadedAt)}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              FilledButton.tonal(
-                onPressed: onUpload,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 40),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
+                      ? resume == null
+                            ? 'Upload a PDF to unlock AI writing.'
+                            : 'Re-upload it so AI can work from the full text.'
+                      : resume.headline ??
+                            'Uploaded ${DateFormat('MMM d').format(resume.uploadedAt)}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
-                child: Text(needsUpload ? 'Upload' : 'Replace'),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+          const SizedBox(width: AppSpacing.xs),
+          FilledButton(
+            onPressed: onUpload,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            ),
+            child: Text(needsUpload ? 'Upload' : 'Replace'),
+          ),
+        ],
       ),
     );
   }
@@ -359,18 +351,19 @@ class _ToolCard extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
+    required this.accent,
     required this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
+  final Accent accent;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
 
     return Tooltip(
       message: subtitle,
@@ -380,22 +373,14 @@ class _ToolCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: colorScheme.primary.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-              ),
-              child: Icon(icon, size: 20, color: colorScheme.primary),
-            ),
-            const SizedBox(height: AppSpacing.xs),
+            IconBadge(icon: icon, accent: accent, size: 40),
+            const SizedBox(height: AppSpacing.sm),
             Text(
               title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w600, height: 1.25),
+                  ?.copyWith(fontWeight: FontWeight.w700, height: 1.25),
             ),
           ],
         ),
@@ -419,29 +404,23 @@ class _DocumentList extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
       child: Column(
         children: [
-          for (final doc in documents)
+          for (final (i, doc) in documents.indexed) ...[
+            if (i > 0) const Divider(height: 1, indent: 68),
             ListTile(
               onTap: () => onOpen(doc),
-              leading: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(AppRadius.sm + 2),
-                ),
-                child: Icon(
-                  doc.kind == DocumentKind.resume
-                      ? Icons.description_outlined
-                      : Icons.mail_outline_rounded,
-                  color: colorScheme.onSurfaceVariant,
-                  size: 20,
-                ),
+              leading: IconBadge(
+                icon: doc.kind == DocumentKind.resume
+                    ? Icons.description_rounded
+                    : Icons.mail_rounded,
+                accent: Accent.blue,
+                size: 40,
               ),
               title: Text(
                 doc.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall,
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ),
               subtitle: Text(
                 DateFormat('MMM d, y · h:mm a').format(doc.createdAt),
@@ -451,6 +430,7 @@ class _DocumentList extends StatelessWidget {
               ),
               trailing: const Icon(Icons.chevron_right_rounded),
             ),
+          ],
         ],
       ),
     );

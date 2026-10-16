@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 
-/// Rounded filter/choice chip: outlined when idle, solid ink when selected.
+/// Rounded filter/choice chip: white and outlined when idle, solid ink
+/// when selected.
 class PillChip extends StatelessWidget {
   const PillChip({
     super.key,
@@ -24,56 +24,54 @@ class PillChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final selectedBackground = isDark ? colorScheme.onSurface : AppColors.ink;
-    final selectedForeground = isDark ? AppColors.darkBackground : Colors.white;
+    final foreground = selected ? colorScheme.onPrimary : colorScheme.onSurface;
+    final radius = BorderRadius.circular(999);
 
     return Semantics(
       button: true,
       selected: selected,
-      child: Material(
-        color: selected ? selectedBackground : colorScheme.surface,
-        shape: StadiumBorder(
-          side: BorderSide(
-            color: selected ? selectedBackground : colorScheme.outline,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          color: selected ? colorScheme.primary : colorScheme.surface,
+          border: Border.all(
+            color: selected ? colorScheme.primary : colorScheme.outline,
           ),
         ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.xs + 2,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (leading != null) ...[
-                  IconTheme.merge(
-                    data: IconThemeData(
-                      size: 16,
-                      color: selected ? selectedForeground : null,
-                    ),
-                    child: DefaultTextStyle.merge(
-                      style: TextStyle(
-                        color: selected
-                            ? selectedForeground
-                            : colorScheme.onSurface,
+        child: Material(
+          type: MaterialType.transparency,
+          borderRadius: radius,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.xs + 2,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (leading != null) ...[
+                    IconTheme.merge(
+                      data: IconThemeData(size: 16, color: foreground),
+                      child: DefaultTextStyle.merge(
+                        style: TextStyle(color: foreground),
+                        child: leading!,
                       ),
-                      child: leading!,
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(
+                    label,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                      color: foreground,
                     ),
                   ),
-                  const SizedBox(width: 6),
                 ],
-                Text(
-                  label,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                    color: selected ? selectedForeground : colorScheme.onSurface,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),

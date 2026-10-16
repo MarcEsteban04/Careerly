@@ -136,17 +136,11 @@ class ApplicationsScreen extends StatelessWidget {
             title: 'Jobs',
             subtitle: 'Openings matched to your profile',
             onRefresh: discover.results == null ? () async {} : discover.refresh,
-            header: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                sectionTabs,
-                const SizedBox(height: AppSpacing.md),
-                DiscoverHeader(
-                  controller: discover,
-                  searchController: discoverSearchController,
-                  onEditProfile: onEditProfile,
-                ),
-              ],
+            heroChild: sectionTabs,
+            header: DiscoverHeader(
+              controller: discover,
+              searchController: discoverSearchController,
+              onEditProfile: onEditProfile,
             ),
             children: [
               DiscoverResults(
@@ -170,11 +164,10 @@ class ApplicationsScreen extends StatelessWidget {
                   ? '1 role tracked'
                   : '${applications.length} roles tracked',
           onRefresh: controller.load,
+          heroChild: sectionTabs,
           header: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              sectionTabs,
-              const SizedBox(height: AppSpacing.md),
               SearchPill(
                 hint: 'Search roles or companies',
                 controller: searchController,

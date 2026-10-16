@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
+import '../../../../core/theme/app_accents.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/icon_badge.dart';
 import '../../../agenda/data/agenda_event.dart';
 import '../../../agenda/presentation/agenda_event_style.dart';
 
@@ -41,29 +44,30 @@ class NextUpCard extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Row(
         children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: colorScheme.primary,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-            child: Icon(event.kind.icon, color: colorScheme.onPrimary),
-          ),
+          _DateBlock(date: event.startsAt),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'NEXT UP · ${event.startsAt.countdownLabel().toUpperCase()}',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: colorScheme.primary,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Accent.teal.tintIn(theme.brightness),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'NEXT UP · ${event.startsAt.countdownLabel().toUpperCase()}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: Accent.teal.colorIn(theme.brightness),
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.6,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 6),
                 Text(
                   event.title,
                   maxLines: 1,
@@ -72,20 +76,36 @@ class NextUpCard extends StatelessWidget {
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  details,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: colorScheme.onSurfaceVariant),
+                Row(
+                  children: [
+                    Icon(
+                      event.kind.icon,
+                      size: 14,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        details,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: colorScheme.onSurfaceVariant),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
           const SizedBox(width: AppSpacing.xs),
-          IconButton.outlined(
+          IconButton.filledTonal(
             tooltip: 'Mark done',
             onPressed: onDone,
+            style: IconButton.styleFrom(
+              backgroundColor: colorScheme.primary.withValues(alpha: 0.1),
+              foregroundColor: colorScheme.primary,
+            ),
             icon: const Icon(Icons.check_rounded),
           ),
         ],
@@ -102,17 +122,10 @@ class NextUpCard extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Row(
         children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: colorScheme.primary.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-            child: Icon(
-              Icons.event_available_outlined,
-              color: colorScheme.primary,
-            ),
+          const IconBadge(
+            icon: Icons.event_available_rounded,
+            accent: Accent.teal,
+            size: 52,
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
@@ -133,7 +146,51 @@ class NextUpCard extends StatelessWidget {
               ],
             ),
           ),
-          Icon(Icons.add_circle_outline_rounded, color: colorScheme.primary),
+          Icon(Icons.add_circle_rounded, color: colorScheme.primary, size: 28),
+        ],
+      ),
+    );
+  }
+}
+
+/// A calendar-page style block: month over the day number.
+class _DateBlock extends StatelessWidget {
+  const _DateBlock({required this.date});
+
+  final DateTime date;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      width: 58,
+      height: 64,
+      decoration: BoxDecoration(
+        color: colorScheme.primary,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: AppShadows.raised(theme.brightness),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            DateFormat('MMM').format(date).toUpperCase(),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: colorScheme.onPrimary.withValues(alpha: 0.75),
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+            ),
+          ),
+          Text(
+            '${date.day}',
+            style: theme.textTheme.headlineSmall?.copyWith(
+              color: colorScheme.onPrimary,
+              fontWeight: FontWeight.w700,
+              height: 1.1,
+            ),
+          ),
         ],
       ),
     );

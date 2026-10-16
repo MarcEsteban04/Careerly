@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../../../core/theme/app_accents.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/circle_icon_button.dart';
 import '../../../core/widgets/emphasis_text.dart';
 import '../../../core/widgets/empty_state.dart';
-import '../../../core/widgets/header_wash.dart';
+import '../../../core/widgets/hero_header.dart';
+import '../../../core/widgets/icon_badge.dart';
 import '../../../core/widgets/pill_chip.dart';
+import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../../core/widgets/search_pill.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/staggered_reveal.dart';
+import '../../../core/widgets/stat_tile.dart';
 import '../../../core/widgets/tab_page.dart';
 import '../../../core/widgets/user_avatar.dart';
 import '../../applications/data/job_application.dart';
@@ -20,9 +23,11 @@ import '../../shell/data/workspace_controller.dart';
 import '../../shell/data/workspace_data.dart';
 import '../../shell/presentation/widgets/workspace_view.dart';
 import 'widgets/dashboard_skeleton.dart';
+import 'widgets/momentum_card.dart';
 import 'widgets/next_up_card.dart';
 
-/// Home tab: greeting, search, what's next, and your applications by stage.
+/// Home tab: a greeting hero with your numbers, what's next, your
+/// momentum, and your applications by stage.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({
     super.key,
@@ -74,7 +79,6 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  static const _sheetRadius = 28.0;
   static const _preview = 5;
   static const _categories = [
     ApplicationStatus.saved,
@@ -87,40 +91,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bottom = MediaQuery.paddingOf(context).bottom;
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+    return ScrollAwareStatusBar(
+      threshold: 120,
       child: RefreshIndicator(
         onRefresh: widget.controller.load,
         edgeOffset: MediaQuery.paddingOf(context).top,
         child: ListView(
-          padding: EdgeInsets.only(
-            bottom: kFloatingNavClearance + MediaQuery.paddingOf(context).bottom,
-          ),
+          padding: EdgeInsets.only(bottom: kFloatingNavClearance + bottom),
           children: [
-            HeaderWash(
-              child: SafeArea(
-                bottom: false,
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 760),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.lg,
-                        AppSpacing.md,
-                        AppSpacing.lg,
-                        AppSpacing.lg + _sheetRadius,
-                      ),
-                      child: _buildHeader(context),
+            HeroHeader(child: _buildHeader(context)),
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.lg),
+                  child: WorkspaceView(
+                    controller: widget.controller,
+                    loading: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                      child: DashboardSkeleton(),
                     ),
+                    builder: _buildSections,
                   ),
                 ),
               ),
-            ),
-            Transform.translate(
-              offset: const Offset(0, -_sheetRadius),
-              child: _buildSheet(context),
             ),
           ],
         ),
@@ -128,14 +124,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+  static String _greeting(DateTime now) => now.hour < 12
+      ? 'Good morning'
+      : now.hour < 18
+          ? 'Good afternoon'
+          : 'Good evening';
 
+  Widget _buildHeader(BuildContext context) {
     return ListenableBuilder(
       listenable: widget.controller,
       builder: (context, _) {
-        final dueSoon = widget.controller.data?.upcoming
+        // Read here, under the hero, so text picks up its white style.
+        final theme = Theme.of(context);
+        final data = widget.controller.data;
+        final dueSoon = data?.upcoming
                 .where(
                   (e) =>
                       !e.isDone &&
@@ -150,6 +152,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (dueSoon > 0) '$dueSoon due in the next day',
           if (widget.newJobAlerts > 0) '${widget.newJobAlerts} new jobs',
         ];
+        String count(ApplicationStatus? status) => data == null
+            ? '–'
+            : '${data.applications.where((a) => status == null || a.status == status).length}';
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -165,6 +170,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: UserAvatar(
                       initial: widget.initial,
                       photoUrl: widget.avatarUrl,
+                      ring: true,
                     ),
                   ),
                 ),
@@ -174,15 +180,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Welcome back',
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: colorScheme.onSurfaceVariant),
+                        _greeting(DateTime.now()),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                       Text(
                         widget.name ?? 'there',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium,
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ],
                   ),
@@ -200,44 +208,54 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: AppSpacing.lg),
             EmphasisText(
               "Let's get you **hired** for the job you **deserve**!",
-              style: theme.textTheme.headlineMedium?.copyWith(fontSize: 28),
+              emphasisColor: theme.colorScheme.secondary,
+              style: theme.textTheme.headlineMedium
+                  ?.copyWith(fontSize: 30, height: 1.18),
             ),
             const SizedBox(height: AppSpacing.lg),
             SearchPill(
               hint: 'Search your applications',
               onTap: widget.onSearchTap,
             ),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Expanded(
+                  child: StatTile(
+                    value: count(null),
+                    label: 'Tracked',
+                    icon: Icons.work_rounded,
+                    onTap: () => widget.onSeeAllApplications(null),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs + 2),
+                Expanded(
+                  child: StatTile(
+                    value: count(ApplicationStatus.interviewing),
+                    label: 'Interviews',
+                    icon: Icons.forum_rounded,
+                    accent: Accent.amber,
+                    onTap: () => widget.onSeeAllApplications(
+                      ApplicationStatus.interviewing,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs + 2),
+                Expanded(
+                  child: StatTile(
+                    value: count(ApplicationStatus.offer),
+                    label: 'Offers',
+                    icon: Icons.celebration_rounded,
+                    accent: Accent.emerald,
+                    onTap: () =>
+                        widget.onSeeAllApplications(ApplicationStatus.offer),
+                  ),
+                ),
+              ],
+            ),
           ],
         );
       },
-    );
-  }
-
-  Widget _buildSheet(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(_sheetRadius),
-        ),
-        border: Border(top: BorderSide(color: colorScheme.outline)),
-      ),
-      padding: const EdgeInsets.only(top: AppSpacing.lg),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: WorkspaceView(
-            controller: widget.controller,
-            loading: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              child: DashboardSkeleton(),
-            ),
-            builder: _buildSections,
-          ),
-        ),
-      ),
     );
   }
 
@@ -289,45 +307,57 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: AppSpacing.md),
           section(_QuietCard(count: quiet.length, onTap: widget.onReviewQuiet)),
         ],
-        const SizedBox(height: AppSpacing.lg),
-        section(const SectionHeader(title: 'Category')),
-        section(
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: Row(
-              children: [
-                PillChip(
-                  label: 'All',
-                  selected: category == null,
-                  onTap: () => setState(() => _category = null),
-                ),
-                for (final status in _categories) ...[
-                  const SizedBox(width: AppSpacing.xs),
-                  PillChip(
-                    label: status.label,
-                    selected: category == status,
-                    onTap: () => setState(() => _category = status),
-                  ),
-                ],
-              ],
+        if (data.applications.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.lg),
+          section(
+            MomentumCard(
+              applications: data.applications,
+              onOpenStage: widget.onSeeAllApplications,
             ),
           ),
-          padded: false,
-        ),
+        ],
         const SizedBox(height: AppSpacing.lg),
         section(
           SectionHeader(
             title: 'Your applications',
-            actionLabel: data.applications.isEmpty ? 'Add' : 'See All',
-            actionIcon: Icons.add_rounded,
+            actionLabel: data.applications.isEmpty ? 'Add' : 'See all',
+            actionIcon: data.applications.isEmpty
+                ? Icons.add_rounded
+                : Icons.chevron_right_rounded,
             trailingIcon: data.applications.isNotEmpty,
-            showIcon: data.applications.isEmpty,
             onAction: data.applications.isEmpty
                 ? widget.onAddApplication
                 : () => widget.onSeeAllApplications(category),
           ),
         ),
+        if (data.applications.isNotEmpty) ...[
+          section(
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              clipBehavior: Clip.none,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              child: Row(
+                children: [
+                  PillChip(
+                    label: 'All',
+                    selected: category == null,
+                    onTap: () => setState(() => _category = null),
+                  ),
+                  for (final status in _categories) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    PillChip(
+                      label: status.label,
+                      selected: category == status,
+                      onTap: () => setState(() => _category = status),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            padded: false,
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
         section(
           visible.isEmpty
               ? AppCard(
@@ -346,6 +376,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         )
                       : EmptyState(
                           icon: Icons.filter_list_rounded,
+                          accent: Accent.violet,
                           title: 'Nothing in ${category!.label}',
                           message: 'Applications show up here as you move '
                               'them along.',
@@ -381,23 +412,17 @@ class _QuietCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final tone = Accent.amber.colorIn(theme.brightness);
 
     return AppCard(
       onTap: onTap,
-      color: colorScheme.tertiaryContainer.withValues(alpha: 0.35),
+      color: Color.alphaBlend(tone.withValues(alpha: 0.07), colorScheme.surface),
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-            child: Icon(
-              Icons.hourglass_bottom_rounded,
-              color: colorScheme.primary,
-            ),
+          const IconBadge(
+            icon: Icons.hourglass_bottom_rounded,
+            accent: Accent.amber,
+            size: 44,
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -409,7 +434,7 @@ class _QuietCard extends StatelessWidget {
                       ? '1 application has gone quiet'
                       : '$count applications have gone quiet',
                   style: theme.textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -420,7 +445,7 @@ class _QuietCard extends StatelessWidget {
               ],
             ),
           ),
-          Icon(Icons.chevron_right_rounded, color: colorScheme.onSurfaceVariant),
+          Icon(Icons.chevron_right_rounded, color: tone),
         ],
       ),
     );

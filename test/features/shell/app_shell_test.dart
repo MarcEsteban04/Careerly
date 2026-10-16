@@ -219,8 +219,7 @@ void main() {
       await pumpDiscover(tester);
 
       expect(find.text('Find jobs that fit you'), findsOneWidget);
-      await tester.tap(find.text('Search "UI Designer"'));
-      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Search "UI Designer"'));
 
       expect(find.textContaining('2 jobs for "UI Designer"'), findsOneWidget);
       final designer = tester.getTopLeft(find.text('UI/UX Designer')).dy;
@@ -254,14 +253,12 @@ void main() {
       await openTab(tester, 'Jobs');
       await tester.tap(find.text('Discover'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Search "UI Designer"'));
-      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Search "UI Designer"'));
 
       expect(find.text('Possible scam'), findsOneWidget);
       expect(find.textContaining('Fits “UI Designer”'), findsOneWidget);
 
-      await tester.tap(find.text('UI/UX Designer'));
-      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('UI/UX Designer'));
       await tester.tap(find.text('Match'));
       await tester.pumpAndSettle();
       expect(find.text('Role'), findsOneWidget);
@@ -302,8 +299,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Japan'), findsOneWidget);
-      await tester.tap(find.text('Search "UI Designer"'));
-      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Search "UI Designer"'));
       final query = (discover.jsearch as FakeJSearchClient).queries.last;
       expect(query.scope.country?.code, 'jp');
     });
@@ -312,8 +308,7 @@ void main() {
       await pumpDiscover(tester, profile: const CareerProfile());
 
       expect(find.text('Set up your career profile'), findsOneWidget);
-      await tester.tap(find.text('Set up profile'));
-      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Set up profile'));
       expect(find.text('Career profile'), findsOneWidget);
     });
 
@@ -321,11 +316,9 @@ void main() {
       tester,
     ) async {
       final applications = await pumpDiscover(tester);
-      await tester.tap(find.text('Search "UI Designer"'));
-      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Search "UI Designer"'));
 
-      await tester.tap(find.text('UI/UX Designer'));
-      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('UI/UX Designer'));
       expect(find.text('Job Detail'), findsOneWidget);
       expect(find.text('Apply'), findsOneWidget);
       expect(find.text('Cover letter'), findsOneWidget);
@@ -497,10 +490,8 @@ void main() {
       await openTab(tester, 'Jobs');
       await tester.tap(find.text('Discover'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Search "UI Designer"'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('UI/UX Designer'));
-      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Search "UI Designer"'));
+      await tapVisible(tester, find.text('UI/UX Designer'));
 
       await tester.tap(find.text('Apply'));
       await tester.pumpAndSettle();
@@ -538,10 +529,8 @@ void main() {
       await openTab(tester, 'Jobs');
       await tester.tap(find.text('Discover'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Search "UI Designer"'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('UI/UX Designer'));
-      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Search "UI Designer"'));
+      await tapVisible(tester, find.text('UI/UX Designer'));
       await tester.tap(find.text('Apply'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Open application page'));
@@ -573,8 +562,7 @@ void main() {
       await openTab(tester, 'Jobs');
       await tester.tap(find.text('Discover'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Search "UI Designer"'));
-      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Search "UI Designer"'));
       return preferences;
     }
 

@@ -9,6 +9,7 @@ import '../../shell/data/workspace_controller.dart';
 import '../../shell/presentation/widgets/workspace_view.dart';
 import '../data/agenda_event.dart';
 import 'widgets/agenda_tile.dart';
+import 'widgets/week_strip.dart';
 
 /// Agenda tab: upcoming interviews and reminders, grouped by day.
 class AgendaScreen extends StatelessWidget {
@@ -47,6 +48,9 @@ class AgendaScreen extends StatelessWidget {
               ? '1 thing coming up'
               : '$open things coming up',
           onRefresh: controller.load,
+          heroChild: controller.data == null
+              ? null
+              : WeekStrip(events: events, today: DateTime.now()),
           children: [
             WorkspaceView(
               controller: controller,
@@ -108,16 +112,21 @@ class _GroupedAgenda extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(
               left: AppSpacing.xxs,
-              bottom: AppSpacing.xs,
+              bottom: AppSpacing.sm,
             ),
-            child: Text(
-              entry.key.relativeDayLabel(),
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: entry.key.isSameDay(DateTime.now())
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurfaceVariant,
-              ),
+            child: Row(
+              children: [
+                _DayLabel(
+                  label: entry.key.relativeDayLabel(),
+                  isToday: entry.key.isSameDay(DateTime.now()),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  entry.value.length == 1 ? '1 item' : '${entry.value.length} items',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ],
             ),
           ),
           AppCard(
@@ -138,7 +147,10 @@ class _GroupedAgenda extends StatelessWidget {
                     background: Container(
                       alignment: Alignment.centerRight,
                       padding: const EdgeInsets.only(right: AppSpacing.md),
-                      color: Theme.of(context).colorScheme.errorContainer,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.errorContainer,
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                      ),
                       child: Icon(
                         Icons.delete_outline_rounded,
                         color: Theme.of(context).colorScheme.onErrorContainer,
@@ -156,6 +168,33 @@ class _GroupedAgenda extends StatelessWidget {
           const SizedBox(height: AppSpacing.lg),
         ],
       ],
+    );
+  }
+}
+
+/// A day heading: "Today" stands out as an ink pill.
+class _DayLabel extends StatelessWidget {
+  const _DayLabel({required this.label, required this.isToday});
+
+  final String label;
+  final bool isToday;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final style = theme.textTheme.titleSmall?.copyWith(
+      fontWeight: FontWeight.w700,
+      color: isToday ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface,
+    );
+    if (!isToday) return Text(label, style: style);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(label, style: style),
     );
   }
 }

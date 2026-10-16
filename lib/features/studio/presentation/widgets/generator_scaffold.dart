@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/widgets/circle_icon_button.dart';
+import '../../../../core/widgets/bottom_action_bar.dart';
 import '../../../../core/widgets/emphasis_text.dart';
 import '../../../../core/widgets/form_banner.dart';
+import '../../../../core/widgets/hero_header.dart';
+import '../../../../core/widgets/hero_top_bar.dart';
 import '../../../../core/widgets/primary_button.dart';
+import '../../../../core/widgets/scroll_aware_status_bar.dart';
 
 /// Shared layout for the AI generator pages: back button, bold headline,
 /// form fields, an error banner, a "working…" card, and the main action.
@@ -40,59 +43,57 @@ class GeneratorScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: Column(
+      body: ScrollAwareStatusBar(
+        threshold: 120,
+        child: ListView(
+          padding: EdgeInsets.only(bottom: 120 + bottomInset),
           children: [
-            Padding(
+            HeroHeader(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg,
                 AppSpacing.sm,
                 AppSpacing.lg,
-                AppSpacing.sm,
+                AppSpacing.lg + 4,
               ),
-              child: Row(
-                children: [
-                  CircleIconButton(
-                    icon: Icons.arrow_back_rounded,
-                    tooltip: 'Back',
-                    onPressed: () => Navigator.of(context).maybePop(),
-                  ),
-                  Expanded(
-                    child: Text(
-                      title,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleMedium,
-                    ),
-                  ),
-                  const SizedBox(width: 48),
-                ],
+              child: Builder(
+                builder: (context) {
+                  final theme = Theme.of(context);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      HeroTopBar(title: title),
+                      const SizedBox(height: AppSpacing.lg),
+                      EmphasisText(
+                        headline,
+                        emphasisColor: theme.colorScheme.secondary,
+                        style: theme.textTheme.headlineMedium
+                            ?.copyWith(fontSize: 28),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        subtitle,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.md,
-                  AppSpacing.lg,
-                  120 + bottomInset,
-                ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.lg,
+                AppSpacing.lg,
+                0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  EmphasisText(
-                    headline,
-                    style: theme.textTheme.headlineMedium?.copyWith(fontSize: 26),
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    subtitle,
-                    style: theme.textTheme.bodyLarge
-                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
                   ...children,
                   if (errorMessage != null) ...[
                     const SizedBox(height: AppSpacing.md),
@@ -108,14 +109,7 @@ class GeneratorScaffold extends StatelessWidget {
           ],
         ),
       ),
-      bottomSheet: Container(
-        color: theme.colorScheme.surface,
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.sm,
-          AppSpacing.lg,
-          AppSpacing.sm + bottomInset,
-        ),
+      bottomSheet: BottomActionBar(
         child: PrimaryButton(
           label: actionLabel,
           icon: Icons.auto_awesome_rounded,

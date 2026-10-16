@@ -654,3 +654,12 @@ class FakePreferencesRepository implements SearchPreferencesRepository {
   Future<void> undismiss(JobListing job) async =>
       dismissed.remove(job.dedupeKey);
 }
+
+/// Scrolls [finder] into view (clear of the hero and floating nav bar),
+/// then taps it.
+Future<void> tapVisible(WidgetTester tester, Finder finder) async {
+  await Scrollable.ensureVisible(tester.element(finder), alignment: 0.4);
+  await tester.pumpAndSettle();
+  await tester.tap(finder);
+  await tester.pumpAndSettle();
+}

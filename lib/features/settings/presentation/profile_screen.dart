@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show StorageException;
 
+import '../../../core/theme/app_accents.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/error_message.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/circle_icon_button.dart';
-import '../../../core/widgets/header_wash.dart';
+import '../../../core/widgets/hero_header.dart';
+import '../../../core/widgets/icon_badge.dart';
+import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/stat_tile.dart';
 import '../../../core/widgets/user_avatar.dart';
 import '../../auth/data/app_lock_repository.dart';
 import '../../auth/data/auth_repository.dart';
@@ -57,11 +60,10 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+    return ScrollAwareStatusBar(
+      threshold: 120,
       child: Scaffold(
         body: ListenableBuilder(
           listenable: discover,
@@ -71,6 +73,7 @@ class ProfileScreen extends StatelessWidget {
               padding: EdgeInsets.only(bottom: AppSpacing.xl + bottomInset),
               children: [
                 _Header(
+                  profile: profile,
                   authRepository: authRepository,
                   avatars: avatars,
                   onAvatarChanged: onAvatarChanged,
@@ -136,11 +139,13 @@ class ProfileScreen extends StatelessWidget {
 
 class _Header extends StatefulWidget {
   const _Header({
+    required this.profile,
     required this.authRepository,
     required this.avatars,
     required this.onAvatarChanged,
   });
 
+  final CareerProfile profile;
   final AuthRepository authRepository;
   final AvatarRepository avatars;
   final VoidCallback onAvatarChanged;
@@ -243,25 +248,25 @@ class _HeaderState extends State<_Header> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final authRepository = widget.authRepository;
     final name = authRepository.currentUserName;
     final email = authRepository.currentUserEmail ?? '';
     final initial =
         (name ?? email).characters.firstOrNull?.toUpperCase() ?? '?';
+    final profile = widget.profile;
 
-    return HeaderWash(
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.sm,
-            AppSpacing.lg,
-            AppSpacing.lg,
-          ),
-          child: Column(
+    return HeroHeader(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        AppSpacing.lg,
+      ),
+      // Built under the hero so text and buttons pick up its look.
+      child: Builder(
+        builder: (context) {
+          final theme = Theme.of(context);
+          return Column(
             children: [
               Row(
                 children: [
@@ -274,26 +279,40 @@ class _HeaderState extends State<_Header> {
                     child: Text(
                       'Profile',
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.titleMedium,
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                   ),
                   const SizedBox(width: 48),
                 ],
               ),
-              const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: AppSpacing.md),
               Semantics(
                 button: true,
                 label: 'Change profile photo',
                 child: InkResponse(
                   onTap: _isSaving ? null : _changePhoto,
-                  radius: 48,
+                  radius: 52,
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      UserAvatar(
-                        initial: initial,
-                        photoUrl: authRepository.currentUserAvatarUrl,
-                        radius: 44,
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.25),
+                              blurRadius: 24,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: UserAvatar(
+                          initial: initial,
+                          photoUrl: authRepository.currentUserAvatarUrl,
+                          radius: 48,
+                          ring: true,
+                        ),
                       ),
                       if (_isSaving)
                         Positioned.fill(
@@ -317,19 +336,20 @@ class _HeaderState extends State<_Header> {
                         right: -2,
                         bottom: -2,
                         child: Container(
-                          width: 32,
-                          height: 32,
+                          width: 34,
+                          height: 34,
                           decoration: BoxDecoration(
-                            color: colorScheme.surface,
+                            color: theme.colorScheme.primary,
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: colorScheme.outlineVariant,
+                              color: theme.colorScheme.surface,
+                              width: 2,
                             ),
                           ),
                           child: Icon(
-                            Icons.photo_camera_outlined,
+                            Icons.photo_camera_rounded,
                             size: 17,
-                            color: colorScheme.primary,
+                            color: theme.colorScheme.onPrimary,
                           ),
                         ),
                       ),
@@ -348,11 +368,41 @@ class _HeaderState extends State<_Header> {
                 email,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: colorScheme.onSurfaceVariant),
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Row(
+                children: [
+                  Expanded(
+                    child: StatTile(
+                      value: '${profile.effectiveRoles.length}',
+                      label: 'Target roles',
+                      icon: Icons.work_rounded,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs + 2),
+                  Expanded(
+                    child: StatTile(
+                      value: '${profile.effectiveSkills.length}',
+                      label: 'Skills',
+                      icon: Icons.bolt_rounded,
+                      accent: Accent.amber,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs + 2),
+                  Expanded(
+                    child: StatTile(
+                      value: profile.resume == null ? 'None' : 'Added',
+                      label: 'Resume',
+                      icon: Icons.description_rounded,
+                      accent: Accent.emerald,
+                    ),
+                  ),
+                ],
               ),
             ],
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -375,14 +425,9 @@ class _CareerProfileCard extends StatelessWidget {
         color: colorScheme.primary.withValues(alpha: 0.05),
         child: Row(
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: colorScheme.primary.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.person_add_alt_rounded, color: colorScheme.primary),
+            const IconBadge(
+              icon: Icons.person_add_alt_rounded,
+              accent: Accent.violet,
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
@@ -470,21 +515,11 @@ class _ResumeCard extends StatelessWidget {
     return AppCard(
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: resume == null
-                  ? colorScheme.primary.withValues(alpha: 0.12)
-                  : colorScheme.primary,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-            child: Icon(
-              resume == null
-                  ? Icons.upload_file_rounded
-                  : Icons.description_outlined,
-              color: resume == null ? colorScheme.primary : colorScheme.onPrimary,
-            ),
+          IconBadge(
+            icon: resume == null
+                ? Icons.upload_file_rounded
+                : Icons.description_rounded,
+            accent: Accent.emerald,
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -795,8 +830,11 @@ class _NotificationsCardState extends State<_NotificationsCard>
               ),
             ),
           SwitchListTile(
-            secondary:
-                Icon(Icons.event_available_rounded, color: colorScheme.primary),
+            secondary: const IconBadge(
+              icon: Icons.event_available_rounded,
+              accent: Accent.teal,
+              size: 40,
+            ),
             title: const Text('Reminders'),
             subtitle: const Text(
               'Before interviews, and for follow-ups and deadlines',
@@ -806,9 +844,10 @@ class _NotificationsCardState extends State<_NotificationsCard>
           ),
           const Divider(height: 1, indent: 72),
           SwitchListTile(
-            secondary: Icon(
-              Icons.notifications_active_outlined,
-              color: colorScheme.primary,
+            secondary: const IconBadge(
+              icon: Icons.notifications_active_rounded,
+              accent: Accent.amber,
+              size: 40,
             ),
             title: const Text('Job alerts'),
             subtitle: const Text('New jobs for your saved searches, daily'),
@@ -864,13 +903,16 @@ class _AppLockTileState extends State<_AppLockTile> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final available = _available ?? false;
 
     return AppCard(
       padding: EdgeInsets.zero,
       child: SwitchListTile(
-        secondary: Icon(Icons.fingerprint_rounded, color: colorScheme.primary),
+        secondary: const IconBadge(
+          icon: Icons.fingerprint_rounded,
+          accent: Accent.violet,
+          size: 40,
+        ),
         title: const Text('Biometric unlock'),
         subtitle: Text(
           _available == false

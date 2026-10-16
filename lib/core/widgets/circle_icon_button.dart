@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_accents.dart';
+
 /// Outlined round icon button, e.g. back, share or notifications.
 class CircleIconButton extends StatelessWidget {
   const CircleIconButton({
@@ -32,6 +34,8 @@ class CircleIconButton extends StatelessWidget {
           Material(
             color: colorScheme.surface,
             shape: CircleBorder(side: BorderSide(color: colorScheme.outline)),
+            shadowColor: Colors.black.withValues(alpha: 0.2),
+            elevation: 0,
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: onPressed,
@@ -51,14 +55,14 @@ class CircleIconButton extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 5),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: colorScheme.primary,
+                  color: Accent.rose.deep,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: colorScheme.surface, width: 2),
+                  border: Border.all(color: Colors.white, width: 2),
                 ),
                 child: Text(
                   badge > 9 ? '9+' : '$badge',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: colorScheme.onPrimary,
+                        color: Colors.white,
                         fontWeight: FontWeight.w700,
                         height: 1,
                       ),

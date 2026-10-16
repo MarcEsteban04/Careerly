@@ -36,7 +36,7 @@ class _DashboardSkeletonState extends State<DashboardSkeleton>
 
   @override
   Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.surfaceContainerHighest;
+    final color = Theme.of(context).colorScheme.surface;
 
     Widget block(double height, {double radius = AppRadius.lg}) => Container(
           height: height,

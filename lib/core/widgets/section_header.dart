@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_spacing.dart';
 
-/// Section title with an optional trailing text action, e.g. "See All" or
+/// Section title with an optional trailing text action, e.g. "See all" or
 /// "+ Add".
 class SectionHeader extends StatelessWidget {
   const SectionHeader({
@@ -26,6 +26,8 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final icon = Icon(actionIcon, size: 18);
 
     return Padding(
@@ -35,10 +37,11 @@ class SectionHeader extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600, fontSize: 16),
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                letterSpacing: -0.3,
+              ),
             ),
           ),
           if (actionLabel != null)
@@ -46,9 +49,10 @@ class SectionHeader extends StatelessWidget {
               onPressed: onAction,
               style: TextButton.styleFrom(
                 visualDensity: VisualDensity.compact,
-                textStyle: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
+                foregroundColor: colorScheme.primary,
+                backgroundColor: colorScheme.primary.withValues(alpha: 0.08),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                textStyle: theme.textTheme.bodyMedium
                     ?.copyWith(fontWeight: FontWeight.w600),
               ),
               child: Row(

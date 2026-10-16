@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_accents.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/stat_tile.dart';
 import '../../../core/widgets/tab_page.dart';
 import '../../shell/data/workspace_controller.dart';
 import '../../shell/presentation/widgets/workspace_view.dart';
@@ -33,10 +36,15 @@ class GoalsScreen extends StatelessWidget {
 
         return TabPage(
           title: 'Goals',
-          subtitle: controller.data == null || goals.isEmpty
+          subtitle: controller.data == null
               ? null
-              : '${done.length} of ${goals.length} complete',
+              : goals.isEmpty
+                  ? 'Small targets keep the search moving'
+                  : '${done.length} of ${goals.length} complete',
           onRefresh: controller.load,
+          heroChild: goals.isEmpty
+              ? null
+              : _GoalsSummary(goals: goals, active: active.length, done: done.length),
           children: [
             WorkspaceView(
               controller: controller,
@@ -129,6 +137,94 @@ class _GoalGroup extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Overall progress in the header: a ring for every goal combined, and how
+/// many are in progress or done.
+class _GoalsSummary extends StatelessWidget {
+  const _GoalsSummary({
+    required this.goals,
+    required this.active,
+    required this.done,
+  });
+
+  final List<Goal> goals;
+  final int active;
+  final int done;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final overall =
+        goals.fold<double>(0, (sum, g) => sum + g.fraction) / goals.length;
+
+    return Row(
+      children: [
+        Semantics(
+          label: '${(overall * 100).round()}% overall',
+          excludeSemantics: true,
+          child: SizedBox.square(
+            dimension: 92,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                TweenAnimationBuilder<double>(
+                  tween: Tween(end: overall),
+                  duration: const Duration(milliseconds: 700),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, value, _) => CircularProgressIndicator(
+                    value: value,
+                    strokeWidth: 9,
+                    strokeCap: StrokeCap.round,
+                    color: AppColors.accent,
+                    backgroundColor: Theme.of(context).colorScheme.outline,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 92,
+                      height: 92,
+                    ),
+                  ),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${(overall * 100).round()}%',
+                      style: theme.textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w700, height: 1),
+                    ),
+                    Text(
+                      'overall',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: StatTile(
+            value: '$active',
+            label: 'In progress',
+            icon: Icons.trending_up_rounded,
+            accent: Accent.violet,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.xs + 2),
+        Expanded(
+          child: StatTile(
+            value: '$done',
+            label: 'Completed',
+            icon: Icons.emoji_events_rounded,
+            accent: Accent.emerald,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:pdfrx/pdfrx.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/circle_icon_button.dart';
+import '../../../core/widgets/hero_header.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../data/document_pdf.dart';
 
@@ -60,51 +61,62 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
     final colorScheme = theme.colorScheme;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
-    return Scaffold(
-      backgroundColor: colorScheme.surfaceContainerHighest,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: Theme.of(context).brightness == Brightness.dark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: colorScheme.surfaceContainerHighest,
+        body: Column(
           children: [
-            Container(
-              color: colorScheme.surface,
+            HeroHeader(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg,
                 AppSpacing.sm,
                 AppSpacing.lg,
-                AppSpacing.sm,
+                AppSpacing.md,
               ),
-              child: Row(
-                children: [
-                  CircleIconButton(
-                    icon: Icons.arrow_back_rounded,
-                    tooltip: 'Back',
-                    onPressed: () => Navigator.of(context).maybePop(),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('PDF preview', style: theme.textTheme.titleMedium),
-                        Text(
-                          DocumentPdf.fileNameFor(widget.title),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
+              child: Builder(
+                builder: (context) {
+                  final theme = Theme.of(context);
+                  return Row(
+                    children: [
+                      CircleIconButton(
+                        icon: Icons.arrow_back_rounded,
+                        tooltip: 'Back',
+                        onPressed: () => Navigator.of(context).maybePop(),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'PDF preview',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              DocumentPdf.fileNameFor(widget.title),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  CircleIconButton(
-                    icon: Icons.ios_share_rounded,
-                    tooltip: 'Share',
-                    onPressed: _share,
-                  ),
-                ],
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      CircleIconButton(
+                        icon: Icons.ios_share_rounded,
+                        tooltip: 'Share',
+                        onPressed: _share,
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
             Expanded(
@@ -119,8 +131,11 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
-                  loadingBannerBuilder: (context, bytesDownloaded, totalBytes) =>
-                      const Center(child: CircularProgressIndicator()),
+                  loadingBannerBuilder: (
+                    context,
+                    bytesDownloaded,
+                    totalBytes,
+                  ) => const Center(child: CircularProgressIndicator()),
                 ),
               ),
             ),

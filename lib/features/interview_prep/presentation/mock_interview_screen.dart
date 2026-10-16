@@ -6,6 +6,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/circle_icon_button.dart';
 import '../../../core/widgets/form_banner.dart';
+import '../../../core/widgets/hero_header.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../studio/data/career_writer.dart';
 import '../../studio/presentation/writer_error_message.dart';
@@ -176,58 +177,72 @@ class _MockInterviewScreenState extends State<MockInterviewScreen> {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
-      body: SafeArea(
-        bottom: false,
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: Theme.of(context).brightness == Brightness.dark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: Column(
           children: [
-            Padding(
+            HeroHeader(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg,
                 AppSpacing.sm,
                 AppSpacing.lg,
-                AppSpacing.sm,
+                AppSpacing.md,
               ),
-              child: Row(
-                children: [
-                  CircleIconButton(
-                    icon: Icons.close_rounded,
-                    tooltip: 'End practice',
-                    onPressed: () => Navigator.of(context).maybePop(),
-                  ),
-                  Expanded(
-                    child: Text(
-                      'Mock interview',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleMedium,
-                    ),
-                  ),
-                  SizedBox(
-                    width: 48,
-                    child: _done
-                        ? null
-                        : Text(
-                            '${_index + 1}/${_questions.length}',
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+              child: Builder(
+                builder: (context) {
+                  final theme = Theme.of(context);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          CircleIconButton(
+                            icon: Icons.close_rounded,
+                            tooltip: 'End practice',
+                            onPressed: () => Navigator.of(context).maybePop(),
+                          ),
+                          Expanded(
+                            child: Text(
+                              'Mock interview',
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
                             ),
                           ),
-                  ),
-                ],
+                          SizedBox(
+                            width: 48,
+                            child: _done
+                                ? null
+                                : Text(
+                                    '${_index + 1}/${_questions.length}',
+                                    textAlign: TextAlign.center,
+                                    style: theme.textTheme.labelLarge?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                          ),
+                        ],
+                      ),
+                      if (!_done) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: (_index + (_feedback == null ? 0 : 1)) /
+                                _questions.length,
+                            minHeight: 8,
+                            color: AppColors.accent,
+                            backgroundColor: theme.colorScheme.outline,
+                          ),
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
             ),
-            if (!_done)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: (_index + (_feedback == null ? 0 : 1)) /
-                        _questions.length,
-                    minHeight: 6,
-                  ),
-                ),
-              ),
             Expanded(
               child: ListView(
                 padding: EdgeInsets.fromLTRB(
@@ -499,7 +514,7 @@ class _FeedbackViewState extends State<_FeedbackView> {
                         text: '${feedback.score}',
                         style: theme.textTheme.headlineSmall?.copyWith(
                           color: color,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       TextSpan(
@@ -683,7 +698,7 @@ class _Summary extends StatelessWidget {
                         TextSpan(
                           text: average.toStringAsFixed(1),
                           style: theme.textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w700,
                             color: color,
                           ),
                         ),

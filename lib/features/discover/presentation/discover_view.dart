@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_accents.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/form_banner.dart';
+import '../../../core/widgets/icon_badge.dart';
 import '../../../core/widgets/pill_chip.dart';
 import '../../../core/widgets/search_pill.dart';
 import '../../profile/data/career_profile.dart';
@@ -377,18 +379,10 @@ class _ProfileSummary extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.sm + 2),
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: colorScheme.primary.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              empty ? Icons.person_add_alt_rounded : Icons.badge_outlined,
-              color: colorScheme.primary,
-              size: 20,
-            ),
+          IconBadge(
+            icon: empty ? Icons.person_add_alt_rounded : Icons.badge_rounded,
+            accent: Accent.violet,
+            size: 40,
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -682,7 +676,7 @@ class _LoadingCardsState extends State<_LoadingCards>
 
   @override
   Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.surfaceContainerHighest;
+    final color = Theme.of(context).colorScheme.surface;
 
     return Semantics(
       label: 'Searching job boards',

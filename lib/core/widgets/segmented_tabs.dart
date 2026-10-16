@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
+import '../theme/app_spacing.dart';
 
-/// Pill-shaped segmented control with a sliding ink indicator.
+/// Pill-shaped segmented control: a white segment slides across a soft
+/// gray track.
 class SegmentedTabs extends StatelessWidget {
   const SegmentedTabs({
     super.key,
@@ -23,8 +24,6 @@ class SegmentedTabs extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final indicator = isDark ? colorScheme.onSurface : AppColors.ink;
-    final onIndicator = isDark ? AppColors.darkBackground : Colors.white;
 
     return Container(
       height: _height,
@@ -48,8 +47,14 @@ class SegmentedTabs extends StatelessWidget {
                 width: width - _inset * 2,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: indicator,
+                    color: isDark
+                        ? Color.alphaBlend(
+                            Colors.white.withValues(alpha: 0.12),
+                            colorScheme.surfaceContainerHighest,
+                          )
+                        : colorScheme.surface,
                     borderRadius: BorderRadius.circular(_height / 2),
+                    boxShadow: AppShadows.raised(theme.brightness),
                   ),
                 ),
               ),
@@ -71,7 +76,7 @@ class SegmentedTabs extends StatelessWidget {
                                     ? FontWeight.w600
                                     : FontWeight.w500,
                                 color: i == selectedIndex
-                                    ? onIndicator
+                                    ? colorScheme.onSurface
                                     : colorScheme.onSurfaceVariant,
                               ),
                               child: Text(labels[i]),

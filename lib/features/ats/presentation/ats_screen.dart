@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/bottom_action_bar.dart';
 import '../../../core/widgets/app_card.dart';
-import '../../../core/widgets/circle_icon_button.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/form_banner.dart';
+import '../../../core/widgets/hero_header.dart';
+import '../../../core/widgets/hero_top_bar.dart';
 import '../../../core/widgets/pill_chip.dart';
 import '../../../core/widgets/primary_button.dart';
+import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../studio/data/career_writer.dart';
 import '../../studio/data/resume_versions.dart';
 import '../data/ats_checker.dart';
@@ -77,64 +80,86 @@ class _AtsScreenState extends State<AtsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final version = _version;
     final report = version == null ? null : _reports[version.id];
 
     return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: Column(
+      body: ScrollAwareStatusBar(
+        threshold: 120,
+        child: ListView(
+          padding: EdgeInsets.only(bottom: 120 + bottomInset),
           children: [
-            Padding(
+            HeroHeader(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg,
                 AppSpacing.sm,
                 AppSpacing.lg,
-                AppSpacing.sm,
+                AppSpacing.lg,
               ),
-              child: Row(
-                children: [
-                  CircleIconButton(
-                    icon: Icons.arrow_back_rounded,
-                    tooltip: 'Back',
-                    onPressed: () => Navigator.of(context).maybePop(),
-                  ),
-                  Expanded(
-                    child: Text(
-                      'ATS check',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleMedium,
-                    ),
-                  ),
-                  const SizedBox(width: 48),
-                ],
+              child: Builder(
+                builder: (context) {
+                  final theme = Theme.of(context);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const HeroTopBar(title: 'ATS check'),
+                      const SizedBox(height: AppSpacing.lg),
+                      Text(
+                        widget.job.label,
+                        style: theme.textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: AppSpacing.xxs),
+                      Text(
+                        'How well your resume would get through an applicant-'
+                        'tracking system for this job.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      if (widget.versions.length > 1) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          clipBehavior: Clip.none,
+                          child: Row(
+                            children: [
+                              for (final (i, v) in widget.versions.indexed) ...[
+                                if (i > 0) const SizedBox(width: AppSpacing.xs),
+                                PillChip(
+                                  label: v.isOriginal ? 'Original' : v.title,
+                                  leading: _reports[v.id] == null
+                                      ? null
+                                      : Text(
+                                          '${_reports[v.id]!.score}',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                  selected: v.id == version?.id,
+                                  onTap: () => _check(v),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
             ),
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.sm,
-                  AppSpacing.lg,
-                  120 + bottomInset,
-                ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.lg,
+                AppSpacing.lg,
+                0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    widget.job.label,
-                    style: theme.textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: AppSpacing.xxs),
-                  Text(
-                    'How well your resume would get through an applicant-'
-                    'tracking system for this job.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
                   if (widget.versions.isEmpty)
                     const AppCard(
                       child: EmptyState(
@@ -145,33 +170,6 @@ class _AtsScreenState extends State<AtsScreen> {
                       ),
                     )
                   else ...[
-                    if (widget.versions.length > 1) ...[
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        clipBehavior: Clip.none,
-                        child: Row(
-                          children: [
-                            for (final (i, v) in widget.versions.indexed) ...[
-                              if (i > 0) const SizedBox(width: AppSpacing.xs),
-                              PillChip(
-                                label: v.isOriginal ? 'Original' : v.title,
-                                leading: _reports[v.id] == null
-                                    ? null
-                                    : Text(
-                                        '${_reports[v.id]!.score}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                selected: v.id == version?.id,
-                                onTap: () => _check(v),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                    ],
                     if (_error != null) FormBanner(message: _error!),
                     if (_loading)
                       const Padding(
@@ -187,14 +185,7 @@ class _AtsScreenState extends State<AtsScreen> {
           ],
         ),
       ),
-      bottomSheet: Container(
-        color: theme.colorScheme.surface,
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.sm,
-          AppSpacing.lg,
-          AppSpacing.sm + bottomInset,
-        ),
+      bottomSheet: BottomActionBar(
         child: PrimaryButton(
           label: 'Tailor a version with AI',
           icon: Icons.auto_fix_high_rounded,
@@ -246,7 +237,7 @@ class _ReportView extends StatelessWidget {
                         '${report.score}',
                         style: theme.textTheme.headlineSmall?.copyWith(
                           color: color,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700,
                         ),
                         semanticsLabel: 'ATS score ${report.score} out of 100',
                       ),

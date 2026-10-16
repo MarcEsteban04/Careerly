@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/utils/date_utils.dart';
+import '../../../../core/widgets/icon_badge.dart';
 import '../../data/agenda_event.dart';
 import '../agenda_event_style.dart';
 
-/// One agenda row: date badge, title, details, and a done checkbox.
+/// One agenda row: time, a badge in the kind's color, title, details, and
+/// a done checkbox. The day is shown by the group heading.
 class AgendaTile extends StatelessWidget {
   const AgendaTile({
     super.key,
@@ -25,12 +26,9 @@ class AgendaTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isToday = event.startsAt.isSameDay(DateTime.now());
-    final badgeColor = isToday ? colorScheme.primary : colorScheme.onSurface;
-    // The date badge and day heading already show the day; the icon shows
-    // the kind.
+    final muted = colorScheme.onSurfaceVariant;
     final details = [
-      event.startsAt.timeLabel,
+      event.kind.label,
       if (event.company != null) event.company!,
     ].join(' · ');
 
@@ -38,37 +36,37 @@ class AgendaTile extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppRadius.sm),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs + 2),
         child: Row(
           children: [
-            Container(
-              width: 52,
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-              decoration: BoxDecoration(
-                color: isToday
-                    ? colorScheme.primary.withValues(alpha: 0.12)
-                    : colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(AppRadius.sm + 2),
-              ),
+            SizedBox(
+              width: 50,
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    DateFormat('MMM').format(event.startsAt).toUpperCase(),
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: badgeColor,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.6,
+                    DateFormat('h:mm').format(event.startsAt),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: event.isDone ? muted : null,
                     ),
                   ),
                   Text(
-                    '${event.startsAt.day}',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: badgeColor,
-                      fontWeight: FontWeight.w700,
-                      height: 1.1,
-                    ),
+                    DateFormat('a').format(event.startsAt),
+                    style: theme.textTheme.labelSmall?.copyWith(color: muted),
                   ),
                 ],
+              ),
+            ),
+            Opacity(
+              opacity: event.isDone ? 0.5 : 1,
+              child: Tooltip(
+                message: event.kind.label,
+                child: IconBadge(
+                  icon: event.kind.icon,
+                  accent: event.kind.accent,
+                  size: 40,
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
@@ -76,43 +74,23 @@ class AgendaTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Tooltip(
-                        message: event.kind.label,
-                        child: Icon(
-                          event.kind.icon,
-                          size: 16,
-                          color: colorScheme.primary,
-                          semanticLabel: event.kind.label,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          event.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            decoration: event.isDone
-                                ? TextDecoration.lineThrough
-                                : null,
-                            color: event.isDone
-                                ? colorScheme.onSurfaceVariant
-                                : null,
-                          ),
-                        ),
-                      ),
-                    ],
+                  Text(
+                    event.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      decoration:
+                          event.isDone ? TextDecoration.lineThrough : null,
+                      color: event.isDone ? muted : null,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     details,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
                   ),
                 ],
               ),

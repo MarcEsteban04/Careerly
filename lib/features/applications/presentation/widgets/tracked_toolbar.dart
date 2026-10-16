@@ -116,13 +116,13 @@ class _LayoutSwitch extends StatelessWidget {
               width: 48,
               height: 40,
               decoration: BoxDecoration(
-                color: selected ? colorScheme.onSurface : Colors.transparent,
+                color: selected ? colorScheme.primary : Colors.transparent,
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Icon(
                 icon,
                 size: 20,
-                color: selected ? colorScheme.surface : colorScheme.onSurface,
+                color: selected ? colorScheme.onPrimary : colorScheme.onSurface,
               ),
             ),
           ),

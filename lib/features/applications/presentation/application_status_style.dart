@@ -9,7 +9,7 @@ extension ApplicationStatusStyle on ApplicationStatus {
     final isDark = theme.brightness == Brightness.dark;
     return switch (this) {
       ApplicationStatus.saved => theme.colorScheme.onSurfaceVariant,
-      ApplicationStatus.applied => theme.colorScheme.primary,
+      ApplicationStatus.applied => theme.colorScheme.secondary,
       ApplicationStatus.interviewing =>
         isDark ? AppColors.warningDark : AppColors.warning,
       ApplicationStatus.offer =>

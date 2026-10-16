@@ -3,10 +3,17 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_accents.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/bottom_action_bar.dart';
 import '../../../core/utils/error_message.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/circle_icon_button.dart';
+import '../../../core/widgets/hero_header.dart';
+import '../../../core/widgets/hero_top_bar.dart';
+import '../../../core/widgets/icon_badge.dart';
+import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/segmented_tabs.dart';
@@ -45,7 +52,7 @@ class ApplicationDetailScreen extends StatefulWidget {
 
   /// Opens the message writer; [followUp] when a follow-up is due.
   final void Function(JobApplication application, {bool followUp})
-      onWriteMessage;
+  onWriteMessage;
 
   final String applicationId;
   final WorkspaceController controller;
@@ -87,16 +94,15 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
   }
 
   Future<void> _changeStatus(JobApplication application) async {
-    final status = await showStatusPicker(
-      context,
-      current: application.status,
-    );
+    final status = await showStatusPicker(context, current: application.status);
     if (status == null || status == application.status || !mounted) return;
 
     setState(() => _isUpdating = true);
     try {
-      final updated = await widget.controller.applications
-          .updateStatus(application, status);
+      final updated = await widget.controller.applications.updateStatus(
+        application,
+        status,
+      );
       widget.controller.replaceApplication(updated);
       HapticFeedback.lightImpact();
       _showMessage('Moved to ${status.label}');
@@ -111,8 +117,10 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     FocusScope.of(context).unfocus();
     setState(() => _isSavingNotes = true);
     try {
-      final updated = await widget.controller.applications
-          .updateNotes(application.id, _notesController.text);
+      final updated = await widget.controller.applications.updateNotes(
+        application.id,
+        _notesController.text,
+      );
       widget.controller.replaceApplication(updated);
       _showMessage('Notes saved');
     } catch (error) {
@@ -124,7 +132,8 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
 
   Future<void> _openJobPost(String url) async {
     final uri = Uri.tryParse(url.startsWith('http') ? url : 'https://$url');
-    final opened = uri != null &&
+    final opened =
+        uri != null &&
         await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!opened) _showMessage("Couldn't open that link.");
   }
@@ -173,9 +182,8 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
       _showMessage(error);
     } else {
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Deleted ${application.role}')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Deleted ${application.role}')));
     }
   }
 
@@ -276,60 +284,55 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
   }
 
   Widget _buildScreen(BuildContext context, JobApplication application) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: Column(
+      body: ScrollAwareStatusBar(
+        threshold: 120,
+        child: ListView(
+          padding: EdgeInsets.only(bottom: 120 + bottomInset),
           children: [
-            Padding(
+            HeroHeader(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg,
                 AppSpacing.sm,
                 AppSpacing.lg,
-                AppSpacing.sm,
+                AppSpacing.lg,
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  CircleIconButton(
-                    icon: Icons.arrow_back_rounded,
-                    tooltip: 'Back',
-                    onPressed: () => Navigator.of(context).maybePop(),
-                  ),
-                  Expanded(
-                    child: Text(
-                      'Application',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleMedium,
+                  HeroTopBar(
+                    title: 'Application',
+                    trailing: CircleIconButton(
+                      icon: Icons.more_horiz_rounded,
+                      tooltip: 'More',
+                      onPressed: () => _showMore(application),
                     ),
                   ),
-                  CircleIconButton(
-                    icon: Icons.more_horiz_rounded,
-                    tooltip: 'More',
-                    onPressed: () => _showMore(application),
-                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  _Header(application: application),
                 ],
               ),
             ),
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.sm,
-                  AppSpacing.lg,
-                  120 + bottomInset,
-                ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                0,
+                AppSpacing.lg,
+                0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _Header(application: application),
                   if (_followUpDue(application)) ...[
                     const SizedBox(height: AppSpacing.md),
                     _ActionCard(
                       icon: Icons.forward_to_inbox_rounded,
+                      accent: Accent.teal,
                       title: 'Time to follow up',
-                      subtitle: 'Careerly can draft a short, friendly email '
+                      subtitle:
+                          'Careerly can draft a short, friendly email '
                           'for you.',
                       onTap: () =>
                           widget.onWriteMessage(application, followUp: true),
@@ -339,8 +342,10 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                     const SizedBox(height: AppSpacing.md),
                     _ActionCard(
                       icon: Icons.record_voice_over_outlined,
+                      accent: Accent.amber,
                       title: 'Prepare for your interview',
-                      subtitle: 'Likely questions, answers from your resume, '
+                      subtitle:
+                          'Likely questions, answers from your resume, '
                           'and a mock interview.',
                       onTap: () => widget.onInterviewPrep(application),
                     ),
@@ -358,12 +363,12 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                       key: ValueKey(_tab),
                       child: switch (_tab) {
                         0 => _Overview(
-                            application: application,
-                            onSetFollowUp: () => _setFollowUp(application),
-                            onOpenJobPost: application.jobUrl == null
-                                ? null
-                                : () => _openJobPost(application.jobUrl!),
-                          ),
+                          application: application,
+                          onSetFollowUp: () => _setFollowUp(application),
+                          onOpenJobPost: application.jobUrl == null
+                              ? null
+                              : () => _openJobPost(application.jobUrl!),
+                        ),
                         1 => _buildTimeline(application),
                         2 => _buildAgenda(application),
                         _ => _buildNotes(application),
@@ -376,14 +381,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
           ],
         ),
       ),
-      bottomSheet: Container(
-        color: colorScheme.surface,
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.sm,
-          AppSpacing.lg,
-          AppSpacing.sm + bottomInset,
-        ),
+      bottomSheet: BottomActionBar(
         child: Row(
           children: [
             if (application.jobUrl != null && !application.isApplied) ...[
@@ -434,8 +432,10 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     );
     if (picked == null || !mounted) return;
     try {
-      final updated =
-          await widget.controller.applications.setFollowUp(application.id, picked);
+      final updated = await widget.controller.applications.setFollowUp(
+        application.id,
+        picked,
+      );
       await widget.agenda.create(
         kind: AgendaEventKind.followUp,
         title: 'Follow up with ${application.company}',
@@ -444,7 +444,9 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
       );
       widget.controller.replaceApplication(updated);
       await widget.controller.load();
-      _showMessage('Follow-up set for ${DateFormat('EEE, MMM d').format(picked)}');
+      _showMessage(
+        'Follow-up set for ${DateFormat('EEE, MMM d').format(picked)}',
+      );
     } catch (error) {
       _showMessage(friendlyErrorMessage(error));
     }
@@ -471,7 +473,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
               title: 'Timeline unavailable',
               message: isMissingSchemaError(error)
                   ? 'Run the latest database migration to record status '
-                      'history.'
+                        'history.'
                   : friendlyErrorMessage(error),
             ),
           );
@@ -493,7 +495,8 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
   }
 
   Widget _buildAgenda(JobApplication application) {
-    final events = widget.controller.data?.upcoming
+    final events =
+        widget.controller.data?.upcoming
             .where((e) => e.applicationId == application.id)
             .toList() ??
         const [];
@@ -514,7 +517,8 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                   child: EmptyState(
                     icon: Icons.event_available_outlined,
                     title: 'Nothing scheduled',
-                    message: 'Add interviews, follow-ups or deadlines for '
+                    message:
+                        'Add interviews, follow-ups or deadlines for '
                         'this role.',
                   ),
                 )
@@ -524,8 +528,10 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                       AgendaTile(
                         event: event,
                         onToggleDone: (done) async {
-                          final error = await widget.controller
-                              .setEventDone(event.id, isDone: done);
+                          final error = await widget.controller.setEventDone(
+                            event.id,
+                            isDone: done,
+                          );
                           if (error != null) _showMessage(error);
                         },
                       ),
@@ -586,11 +592,13 @@ bool _followUpDue(JobApplication application) {
 class _ActionCard extends StatelessWidget {
   const _ActionCard({
     required this.icon,
+    required this.accent,
     required this.title,
     required this.subtitle,
     required this.onTap,
   });
 
+  final Accent accent;
   final IconData icon;
   final String title;
   final String subtitle;
@@ -603,18 +611,13 @@ class _ActionCard extends StatelessWidget {
 
     return AppCard(
       onTap: onTap,
-      color: colorScheme.primary.withValues(alpha: 0.06),
+      color: Color.alphaBlend(
+        accent.colorIn(theme.brightness).withValues(alpha: 0.07),
+        colorScheme.surface,
+      ),
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: colorScheme.primary,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-            child: Icon(icon, color: colorScheme.onPrimary),
-          ),
+          IconBadge(icon: icon, accent: accent),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
@@ -622,19 +625,24 @@ class _ActionCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: theme.textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: colorScheme.onSurfaceVariant),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
           ),
-          Icon(Icons.chevron_right_rounded, color: colorScheme.onSurfaceVariant),
+          Icon(
+            Icons.chevron_right_rounded,
+            color: colorScheme.onSurfaceVariant,
+          ),
         ],
       ),
     );
@@ -668,14 +676,16 @@ class _Header extends StatelessWidget {
                 children: [
                   Text(
                     application.role,
-                    style: theme.textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(color: colorScheme.onSurfaceVariant),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -691,8 +701,7 @@ class _Header extends StatelessWidget {
               label: application.status.label,
               leading: StatusDot(color: application.status.colorIn(theme)),
             ),
-            if (application.salary != null)
-              TagPill(label: application.salary!),
+            if (application.salary != null) TagPill(label: application.salary!),
             if (application.appliedOn != null)
               TagPill(
                 label:
@@ -734,13 +743,19 @@ class _Overview extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Progress', style: theme.textTheme.titleMedium),
+        Text(
+          'Progress',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
         const SizedBox(height: AppSpacing.sm),
         if (rejected)
           Text(
             'This application is closed.',
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: colorScheme.onSurfaceVariant),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           )
         else
           Row(
@@ -752,10 +767,10 @@ class _Overview extends StatelessWidget {
                     children: [
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 300),
-                        height: 6,
+                        height: 8,
                         decoration: BoxDecoration(
                           color: i <= reached
-                              ? _stages[reached].colorIn(theme)
+                              ? AppColors.accent
                               : colorScheme.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(3),
                         ),
@@ -767,8 +782,9 @@ class _Overview extends StatelessWidget {
                           color: i == reached
                               ? colorScheme.onSurface
                               : colorScheme.onSurfaceVariant,
-                          fontWeight:
-                              i == reached ? FontWeight.w600 : FontWeight.w400,
+                          fontWeight: i == reached
+                              ? FontWeight.w600
+                              : FontWeight.w400,
                         ),
                       ),
                     ],
@@ -779,67 +795,87 @@ class _Overview extends StatelessWidget {
             ],
           ),
         const SizedBox(height: AppSpacing.lg),
-        Text('Details', style: theme.textTheme.titleMedium),
-        const SizedBox(height: AppSpacing.xs),
-        _DetailRow(
-          icon: Icons.flag_outlined,
-          label: 'Status',
-          value: application.status.label,
-        ),
-        _DetailRow(
-          icon: Icons.calendar_today_outlined,
-          label: 'Applied on',
-          value: application.appliedOn == null
-              ? 'Not yet'
-              : dateFormat.format(application.appliedOn!),
-        ),
-        _DetailRow(
-          icon: Icons.place_outlined,
-          label: 'Location',
-          value: application.location ?? '—',
-        ),
-        _DetailRow(
-          icon: Icons.payments_outlined,
-          label: 'Salary',
-          value: application.salary ?? '—',
-        ),
-        _DetailRow(
-          icon: Icons.history_rounded,
-          label: 'Added',
-          value: dateFormat.format(application.createdAt),
-        ),
-        if (application.source != null)
-          _DetailRow(
-            icon: Icons.travel_explore_rounded,
-            label: 'Found via',
-            value: application.source!,
+        Text(
+          'Details',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
           ),
-        InkWell(
-          onTap: onSetFollowUp,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          child: Row(
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        AppCard(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
+          ),
+          child: Column(
             children: [
-              Expanded(
-                child: _DetailRow(
-                  icon: Icons.notifications_active_outlined,
-                  label: 'Follow up',
-                  value: application.followUpOn == null
-                      ? 'Set a date'
-                      : dateFormat.format(application.followUpOn!),
-                ),
+              _DetailRow(
+                icon: Icons.flag_outlined,
+                label: 'Status',
+                value: application.status.label,
               ),
-              const SizedBox(width: AppSpacing.xxs),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 20,
-                color: colorScheme.onSurfaceVariant,
+              _DetailRow(
+                icon: Icons.calendar_today_outlined,
+                label: 'Applied on',
+                value: application.appliedOn == null
+                    ? 'Not yet'
+                    : dateFormat.format(application.appliedOn!),
+              ),
+              _DetailRow(
+                icon: Icons.place_outlined,
+                label: 'Location',
+                value: application.location ?? '—',
+              ),
+              _DetailRow(
+                icon: Icons.payments_outlined,
+                label: 'Salary',
+                value: application.salary ?? '—',
+              ),
+              _DetailRow(
+                icon: Icons.history_rounded,
+                label: 'Added',
+                value: dateFormat.format(application.createdAt),
+              ),
+              if (application.source != null)
+                _DetailRow(
+                  icon: Icons.travel_explore_rounded,
+                  label: 'Found via',
+                  value: application.source!,
+                ),
+              InkWell(
+                onTap: onSetFollowUp,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _DetailRow(
+                        icon: Icons.notifications_active_outlined,
+                        label: 'Follow up',
+                        value: application.followUpOn == null
+                            ? 'Set a date'
+                            : dateFormat.format(application.followUpOn!),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xxs),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 20,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
         ),
         if (application.jobDescription != null) ...[
           const SizedBox(height: AppSpacing.lg),
-          Text('Job posting', style: theme.textTheme.titleMedium),
+          Text(
+            'Job posting',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: AppSpacing.xs),
           _ExpandableText(application.jobDescription!),
         ],
@@ -878,14 +914,18 @@ class _DetailRow extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: muted),
           const SizedBox(width: AppSpacing.sm),
-          Text(label, style: theme.textTheme.bodyMedium?.copyWith(color: muted)),
+          Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(color: muted),
+          ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w500),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -924,11 +964,12 @@ class _Timeline extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: i == 0
                               ? (events[i].toStatus?.colorIn(theme) ??
-                                  colorScheme.primary)
+                                    colorScheme.primary)
                               : colorScheme.surface,
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: events[i].toStatus?.colorIn(theme) ??
+                            color:
+                                events[i].toStatus?.colorIn(theme) ??
                                 colorScheme.outline,
                             width: 2,
                           ),

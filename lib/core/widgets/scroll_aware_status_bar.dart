@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// For screens that start with a dark hero: keeps status bar icons light
-/// over the hero, then, once scrolled past [threshold], switches to the
-/// theme's icon color and fades in a backdrop so the status bar stays
-/// readable over content.
+/// Status bar icons in the theme's color, with a backdrop that fades in once
+/// content scrolls past [threshold] so the status bar stays readable over
+/// it.
 class ScrollAwareStatusBar extends StatefulWidget {
   const ScrollAwareStatusBar({
     super.key,
@@ -35,9 +34,8 @@ class _ScrollAwareStatusBarState extends State<ScrollAwareStatusBar> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final style = !_overContent || isDark
-        ? SystemUiOverlayStyle.light
-        : SystemUiOverlayStyle.dark;
+    final style =
+        isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: style,

@@ -134,7 +134,7 @@ class _Column extends StatelessWidget {
           decoration: BoxDecoration(
             color: hovering
                 ? color.withValues(alpha: 0.10)
-                : colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                : colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(AppRadius.lg),
             border: Border.all(
               color: hovering ? color : Colors.transparent,
@@ -144,6 +144,19 @@ class _Column extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Container(
+                height: 4,
+                margin: const EdgeInsets.fromLTRB(
+                  AppSpacing.xs,
+                  AppSpacing.xxs,
+                  AppSpacing.xs,
+                  AppSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.xs,
@@ -168,13 +181,13 @@ class _Column extends StatelessWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: colorScheme.surface,
+                        color: color.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
                         '${applications.length}',
                         style: theme.textTheme.labelMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                          color: color,
                           fontWeight: FontWeight.w700,
                         ),
                       ),

@@ -67,8 +67,6 @@ class _UnlockScreenState extends State<UnlockScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return AuthScaffold(
       headline: widget.firstName == null
           ? 'Welcome **back**'
@@ -83,16 +81,17 @@ class _UnlockScreenState extends State<UnlockScreen> {
             0.8,
             Center(
               child: Container(
-                width: 72,
-                height: 72,
+                width: 84,
+                height: 84,
                 decoration: BoxDecoration(
-                  color: colorScheme.primary.withValues(alpha: 0.10),
+                  color: Theme.of(context).colorScheme.primary,
                   shape: BoxShape.circle,
+                  boxShadow: AppShadows.raised(Theme.of(context).brightness),
                 ),
                 child: Icon(
                   Icons.fingerprint_rounded,
-                  size: 40,
-                  color: colorScheme.primary,
+                  size: 46,
+                  color: Theme.of(context).colorScheme.onPrimary,
                 ),
               ),
             ),

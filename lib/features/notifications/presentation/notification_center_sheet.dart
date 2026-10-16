@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/icon_badge.dart';
 import '../../agenda/data/agenda_event.dart';
 import '../../agenda/presentation/agenda_event_style.dart';
 import '../../discover/data/search_preferences_repository.dart';
@@ -93,17 +94,9 @@ class _NotificationCenter extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
                 child: Column(
                   children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: colorScheme.primary.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(AppRadius.lg),
-                      ),
-                      child: Icon(
-                        Icons.notifications_none_rounded,
-                        color: colorScheme.primary,
-                      ),
+                    const IconBadge(
+                      icon: Icons.notifications_none_rounded,
+                      size: 56,
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     Text(

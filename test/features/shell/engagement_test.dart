@@ -170,8 +170,7 @@ void main() {
         interviewPreps: preps,
       );
 
-      await tester.tap(find.text('Product Designer').first);
-      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Product Designer').first);
       await tester.tap(find.text('Prepare for your interview'));
       await tester.pumpAndSettle();
 
@@ -235,8 +234,7 @@ void main() {
         interviewCoach: InterviewCoach(AiChain([ai])),
         interviewPreps: preps,
       );
-      await tester.tap(find.text('Product Designer').first);
-      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Product Designer').first);
       await tester.tap(find.text('Prepare for your interview'));
       await tester.pumpAndSettle();
 

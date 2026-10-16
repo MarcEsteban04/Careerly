@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_spacing.dart';
 
-/// Full-width blue pill for the main action, with a soft glow. Swaps its
-/// label for a spinner while busy.
+/// Full-width pill for the main action, solid ink with a soft lift. Swaps
+/// its label for a spinner while busy.
 class PrimaryButton extends StatelessWidget {
   const PrimaryButton({
     super.key,
@@ -20,26 +20,27 @@ class PrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final enabled = onPressed != null || isLoading;
 
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.primary.withValues(alpha: 0.30),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        boxShadow: enabled ? AppShadows.raised(theme.brightness) : null,
       ),
       child: FilledButton(
         onPressed: isLoading ? null : onPressed,
-        style: isLoading
-            ? FilledButton.styleFrom(
-                disabledBackgroundColor: colorScheme.primary,
-              )
-            : null,
+        style: FilledButton.styleFrom(
+          minimumSize: const Size.fromHeight(56),
+          // Keeps its color while loading; only a real "disabled" fades.
+          disabledBackgroundColor: isLoading
+              ? colorScheme.primary
+              : colorScheme.onSurface.withValues(alpha: 0.12),
+          disabledForegroundColor: isLoading
+              ? colorScheme.onPrimary
+              : colorScheme.onSurface.withValues(alpha: 0.38),
+        ),
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 180),
           child: isLoading
