@@ -55,7 +55,14 @@ class PillChip extends StatelessWidget {
                       size: 16,
                       color: selected ? selectedForeground : null,
                     ),
-                    child: leading!,
+                    child: DefaultTextStyle.merge(
+                      style: TextStyle(
+                        color: selected
+                            ? selectedForeground
+                            : colorScheme.onSurface,
+                      ),
+                      child: leading!,
+                    ),
                   ),
                   const SizedBox(width: 6),
                 ],

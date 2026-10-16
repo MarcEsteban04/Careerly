@@ -65,15 +65,21 @@ abstract final class AtsChecker {
   };
 
   static const _actionVerbs = {
-    'achieved', 'analyzed', 'automated', 'built', 'collaborated',
-    'conducted', 'created', 'cut', 'debugged', 'delivered', 'deployed',
-    'designed', 'developed', 'digitized', 'drove', 'engineered',
+    'achieved', 'analyzed', 'assisted', 'automated', 'built',
+    'collaborated', 'conducted', 'configured', 'contributed', 'coordinated',
+    'created', 'cut', 'debugged', 'delivered', 'deployed', 'designed',
+    'developed', 'digitized', 'documented', 'drove', 'engineered',
     'enhanced', 'established', 'handled', 'implemented', 'improved',
     'increased', 'integrated', 'launched', 'led', 'maintained', 'managed',
-    'migrated', 'optimized', 'organized', 'owned', 'processed', 'reduced',
-    'resolved', 'shipped', 'streamlined', 'supported', 'tested', 'trained',
-    'wrote',
+    'migrated', 'monitored', 'optimized', 'organized', 'owned', 'prepared',
+    'processed', 'provided', 'reduced', 'resolved', 'shipped',
+    'spearheaded', 'streamlined', 'supported', 'tested', 'trained', 'wrote',
   };
+
+  /// A bullet line: "- ", "• ", "● ", "▪ " and the like, including the
+  /// private-use glyphs symbol fonts leave in text pulled from a PDF.
+  static final _bullet =
+      RegExp(r'^(?:[-*•●▪◦‣➢►○■–]|[-])\s*(\S.*)$');
 
   static const _titleStopWords = {
     'and', 'or', 'the', 'of', 'for', 'to', 'in', 'a', 'an', 'with', 'at',
@@ -81,6 +87,27 @@ abstract final class AtsChecker {
     'level', 'i', 'ii', 'iii', 'part', 'time', 'full', 'contract', 'urgent',
     'hiring',
   };
+
+  static bool _startsWithVerb(String line) {
+    final first = line.split(RegExp(r'\s+')).first.toLowerCase();
+    return _actionVerbs.contains(first.replaceAll(RegExp(r'[^a-z]'), ''));
+  }
+
+  /// The lowercased heading [line] stands for, or null if it isn't one.
+  /// Uploaded PDFs come as plain text, so headings can be Title Case or
+  /// ALL CAPS, alone on a line or leading into its content.
+  static String? _heading(String line) {
+    if (line.startsWith('#')) return line.replaceAll('#', '').trim().toLowerCase();
+    // "Skills: React, Next.js" or "SUMMARY Full Stack Developer with…".
+    final label = RegExp(r'^([A-Za-z][A-Za-z &/]{2,30}):').firstMatch(line) ??
+        RegExp(r'^([A-Z][A-Z &/]{3,30})(?=\s|$)').firstMatch(line);
+    if (label != null) return label.group(1)!.trim().toLowerCase();
+    final words = line.split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+    if (line.length < 40 && words.isNotEmpty && words.length <= 4) {
+      return line.toLowerCase();
+    }
+    return null;
+  }
 
   static AtsReport check({required String resume, required JobContext job}) {
     final plain = markupToPlainText(resume);
@@ -120,12 +147,7 @@ abstract final class AtsChecker {
             : 0;
 
     // Sections (15).
-    final headings = [
-      for (final line in lines)
-        if (line.startsWith('#') ||
-            (line.length < 40 && line == line.toUpperCase() && line.isNotEmpty))
-          line.replaceAll('#', '').trim().toLowerCase(),
-    ];
+    final headings = [for (final line in lines) ?_heading(line)];
     final foundSections = [
       for (final MapEntry(:key, :value) in _sections.entries)
         if (headings.any((h) => value.any(h.contains))) key,
@@ -147,17 +169,21 @@ abstract final class AtsChecker {
     final contactPoints = (hasEmail ? 4 : 0) + (hasPhone ? 4 : 0) + (hasLink ? 2 : 0);
 
     // Impact (15): bullets with numbers, and bullets led by action verbs.
-    final bullets = [
+    // PDFs sometimes draw bullets as graphics, leaving no marker in the
+    // text; then lines that open with an action verb stand in for them.
+    final marked = [
       for (final line in lines)
-        if (line.startsWith('- ') || line.startsWith('• ') || line.startsWith('* '))
-          line.substring(2).trim(),
+        if (_bullet.firstMatch(line) case final m?) m.group(1)!.trim(),
     ];
+    final bullets = marked.isNotEmpty
+        ? marked
+        : [
+            for (final line in lines)
+              if (_startsWithVerb(line)) line,
+          ];
     final quantified =
         bullets.where((b) => RegExp(r'\d').hasMatch(b)).length;
-    final actionLed = bullets.where((b) {
-      final first = b.split(RegExp(r'\s+')).first.toLowerCase();
-      return _actionVerbs.contains(first.replaceAll(RegExp(r'[^a-z]'), ''));
-    }).length;
+    final actionLed = bullets.where(_startsWithVerb).length;
     final numberShare = bullets.isEmpty ? 0.0 : quantified / bullets.length;
     final verbShare = bullets.isEmpty ? 0.0 : actionLed / bullets.length;
     final numberPoints = (numberShare / 0.3).clamp(0, 1) * 8;
@@ -238,8 +264,13 @@ abstract final class AtsChecker {
                 '$actionLed start with a strong verb.',
         tip: impactPoints >= 15
             ? null
-            : 'Start bullets with verbs like "Built" or "Improved" and add '
-                'numbers where they\'re true: %, time saved, users, tickets.',
+            : [
+                if (verbPoints < 7)
+                  'Start bullets with verbs like "Built" or "Improved".',
+                if (numberPoints < 8)
+                  'Add numbers where they\'re true: %, time saved, users, '
+                      'tickets.',
+              ].join(' '),
       ),
       AtsCheck(
         title: 'Length',

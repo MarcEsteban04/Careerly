@@ -83,6 +83,39 @@ void main() {
     );
   });
 
+  test('reads plain text pulled from an uploaded PDF', () {
+    const pdfText = '''
+Princess Mae D. Elfa
+Professional Summary
+Full Stack Developer building web apps.
+WORK EXPERIENCE
+Full Stack Developer, Freelance
+● Built an AI support app that cut response time by 30%.
+ Developed 6 client sites in React.
+Technical Skills: React, Next.js, TypeScript
+Education
+BS Information Technology
+''';
+    final report = AtsChecker.check(resume: pdfText, job: job);
+    AtsCheck check(String title) =>
+        report.checks.firstWhere((c) => c.title == title);
+
+    expect(check('Standard sections').passed, isTrue);
+    expect(check('Measurable results').detail, startsWith('2 of 2 bullets'));
+  });
+
+  test('without bullet markers, verb-led lines count as bullets', () {
+    final report = AtsChecker.check(
+      resume: 'Experience\nBuilt 3 dashboards for sales.\nLed a team of 4.',
+      job: job,
+    );
+
+    expect(
+      report.checks.firstWhere((c) => c.title == 'Measurable results').detail,
+      startsWith('2 of 2 bullets'),
+    );
+  });
+
   test('says when there is no job description to compare', () {
     final report = AtsChecker.check(
       resume: _strongResume,
