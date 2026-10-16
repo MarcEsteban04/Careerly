@@ -3,26 +3,29 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_accents.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/bottom_action_bar.dart';
 import '../../../core/utils/error_message.dart';
 import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/bottom_action_bar.dart';
 import '../../../core/widgets/circle_icon_button.dart';
+import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/hero_header.dart';
 import '../../../core/widgets/hero_top_bar.dart';
 import '../../../core/widgets/icon_badge.dart';
-import '../../../core/widgets/scroll_aware_status_bar.dart';
-import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/primary_button.dart';
+import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../../core/widgets/segmented_tabs.dart';
 import '../../../core/widgets/tag_pill.dart';
 import '../../agenda/data/agenda_event.dart';
 import '../../agenda/data/agenda_repository.dart';
 import '../../agenda/presentation/agenda_event_form_sheet.dart';
 import '../../agenda/presentation/widgets/agenda_tile.dart';
+import '../../company_research/data/company_researcher.dart';
+import '../../company_research/presentation/company_research_card.dart';
 import '../../shell/data/workspace_controller.dart';
+import '../../studio/data/career_writer.dart';
 import '../data/application_event.dart';
 import '../data/job_application.dart';
 import 'application_form_sheet.dart';
@@ -45,7 +48,15 @@ class ApplicationDetailScreen extends StatefulWidget {
     required this.onWriteMessage,
     required this.onAtsCheck,
     required this.onApply,
+    required this.onNegotiate,
+    required this.researcher,
   });
+
+  /// Opens the salary negotiation coach.
+  final ValueChanged<JobApplication> onNegotiate;
+
+  /// Looks the employer up for the company card.
+  final CompanyResearcher researcher;
 
   /// Checks her resume against this job.
   final ValueChanged<JobApplication> onAtsCheck;
@@ -242,6 +253,12 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                 onTap: () => Navigator.of(context).pop('message'),
               ),
               ListTile(
+                leading: const Icon(Icons.handshake_outlined),
+                title: const Text('Negotiate salary'),
+                subtitle: const Text('A fair counter and what to say'),
+                onTap: () => Navigator.of(context).pop('negotiate'),
+              ),
+              ListTile(
                 leading: Icon(
                   Icons.delete_outline_rounded,
                   color: Theme.of(context).colorScheme.error,
@@ -264,6 +281,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
     if (action == 'ats') widget.onAtsCheck(application);
     if (action == 'prep') widget.onInterviewPrep(application);
     if (action == 'message') widget.onWriteMessage(application);
+    if (action == 'negotiate') widget.onNegotiate(application);
     if (action == 'edit') await _editDetails(application);
     if (action == 'delete') await _confirmDelete(application);
   }
@@ -350,6 +368,18 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                       onTap: () => widget.onInterviewPrep(application),
                     ),
                   ],
+                  if (application.status == ApplicationStatus.offer) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _ActionCard(
+                      icon: Icons.handshake_outlined,
+                      accent: Accent.emerald,
+                      title: 'Negotiate your offer',
+                      subtitle:
+                          'A fair counter, talking points and an email to '
+                          'send.',
+                      onTap: () => widget.onNegotiate(application),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.lg),
                   SegmentedTabs(
                     labels: const ['Overview', 'Timeline', 'Agenda', 'Notes'],
@@ -362,12 +392,28 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                     child: KeyedSubtree(
                       key: ValueKey(_tab),
                       child: switch (_tab) {
-                        0 => _Overview(
-                          application: application,
-                          onSetFollowUp: () => _setFollowUp(application),
-                          onOpenJobPost: application.jobUrl == null
-                              ? null
-                              : () => _openJobPost(application.jobUrl!),
+                        0 => Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _Overview(
+                              application: application,
+                              onSetFollowUp: () => _setFollowUp(application),
+                              onOpenJobPost: application.jobUrl == null
+                                  ? null
+                                  : () => _openJobPost(application.jobUrl!),
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+                            CompanyResearchCard(
+                              researcher: widget.researcher,
+                              job: JobContext(
+                                title: application.role,
+                                company: application.company,
+                                location: application.location,
+                                description: application.jobDescription,
+                                applicationId: application.id,
+                              ),
+                            ),
+                          ],
                         ),
                         1 => _buildTimeline(application),
                         2 => _buildAgenda(application),

@@ -13,6 +13,7 @@ import 'package:careerly/features/applications/data/job_application.dart';
 import 'package:careerly/features/auth/data/app_lock_repository.dart';
 import 'package:careerly/core/ai/ai_chain.dart';
 import 'package:careerly/features/applications/data/application_event.dart';
+import 'package:careerly/features/company_research/data/company_researcher.dart';
 import 'package:careerly/features/discover/data/discover_controller.dart';
 import 'package:careerly/features/discover/data/search_preferences_repository.dart';
 import 'package:careerly/features/documents/data/career_document.dart';
@@ -34,6 +35,7 @@ import 'package:careerly/features/interview_prep/data/interview_prep_repository.
 import 'package:careerly/features/job_import/data/job_post_reader.dart';
 import 'package:careerly/features/job_import/data/job_share_inbox.dart';
 import 'package:careerly/features/messages/data/message_writer.dart';
+import 'package:careerly/features/negotiation/data/negotiation_coach.dart';
 import 'package:careerly/features/notifications/data/notifications.dart';
 import 'package:careerly/features/settings/data/avatar_repository.dart';
 
@@ -359,6 +361,8 @@ Future<void> pumpShell(
   FakeJobShareInbox? shareInbox,
   JobPostReader? jobPostReader,
   MessageWriter? messageWriter,
+  CompanyResearcher? companyResearcher,
+  NegotiationCoach? negotiationCoach,
 }) async {
   tester.platformDispatcher.accessibilityFeaturesTestValue =
       const FakeAccessibilityFeatures(disableAnimations: true);
@@ -389,6 +393,8 @@ Future<void> pumpShell(
         avatars: FakeAvatarRepository(),
         jobPostReader: jobPostReader,
         messageWriter: messageWriter,
+        companyResearcher: companyResearcher,
+        negotiationCoach: negotiationCoach,
       ),
     ),
   );

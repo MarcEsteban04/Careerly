@@ -26,6 +26,7 @@ import '../../apply/presentation/apply_confirm_dialog.dart';
 import '../../apply/presentation/apply_kit_sheet.dart';
 import '../../auth/data/app_lock_repository.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../company_research/data/company_researcher.dart';
 import '../../dashboard/presentation/dashboard_screen.dart';
 import '../../discover/data/ai_job_search_client.dart';
 import '../../discover/data/discover_controller.dart';
@@ -53,6 +54,8 @@ import '../../job_import/data/job_share_inbox.dart';
 import '../../job_import/presentation/import_job_flow.dart';
 import '../../messages/data/message_writer.dart';
 import '../../messages/presentation/message_composer_screen.dart';
+import '../../negotiation/data/negotiation_coach.dart';
+import '../../negotiation/presentation/negotiation_screen.dart';
 import '../../notifications/data/local_notifications.dart';
 import '../../notifications/data/notification_settings.dart';
 import '../../notifications/data/notifications.dart';
@@ -98,6 +101,8 @@ class AppShell extends StatefulWidget {
     this.avatars,
     this.jobPostReader,
     this.messageWriter,
+    this.companyResearcher,
+    this.negotiationCoach,
     JobShareInbox? shareInbox,
     this.afterSignIn,
   })  : shareInbox = shareInbox ?? const PlatformJobShareInbox(),
@@ -136,6 +141,8 @@ class AppShell extends StatefulWidget {
   final AvatarRepository? avatars;
   final JobPostReader? jobPostReader;
   final MessageWriter? messageWriter;
+  final CompanyResearcher? companyResearcher;
+  final NegotiationCoach? negotiationCoach;
 
   /// Jobs shared into the app from other apps.
   final JobShareInbox shareInbox;
@@ -222,6 +229,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   final _trackedView = TrackedViewController(prefs: SharedPreferencesAsync());
   late final _jobPostReader = widget.jobPostReader ?? JobPostReader(_ai);
   late final _messageWriter = widget.messageWriter ?? MessageWriter(_ai);
+  late final _companyResearcher =
+      widget.companyResearcher ?? CompanyResearcher(_ai);
+  late final _negotiationCoach =
+      widget.negotiationCoach ?? NegotiationCoach(_ai);
 
   StreamSubscription<String>? _notificationTaps;
   StreamSubscription<String>? _shares;
@@ -826,6 +837,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onWriteCoverLetter: () => _writeCoverLetter(_contextForListing(ranked)),
         onTailorResume: () => _enhanceResume(_contextForListing(ranked)),
         onAtsCheck: () => _openAts(_contextForListing(ranked)),
+        researcher: _companyResearcher,
+        jobContext: _contextForListing(ranked),
         onApply: () => _startApply(
           job: _contextForListing(ranked),
           applyUrl: ranked.listing.applyUrl,
@@ -905,6 +918,43 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             : application.status == ApplicationStatus.interviewing
                 ? MessageKind.checkIn
                 : MessageKind.followUp,
+      ),
+    );
+  }
+
+  /// Coaches salary negotiation for [application], with salaries seen for
+  /// other tracked jobs and current search results as a reference.
+  void _negotiate(JobApplication application) {
+    final comparable = [
+      for (final a in _workspace.data?.applications ?? const <JobApplication>[])
+        if (a.id != application.id && a.salary != null)
+          '${a.role} at ${a.company}: ${a.salary}',
+      for (final r in _discover.results ?? const <RankedListing>[])
+        if (r.listing.salary != null)
+          '${r.listing.title} at ${r.listing.company}: ${r.listing.salary}',
+    ].take(12).toList();
+
+    _push<void>(
+      NegotiationScreen(
+        application: application,
+        coach: _negotiationCoach,
+        profile: _discover.profile,
+        senderName: widget.authRepository.currentUserName,
+        comparableSalaries: comparable,
+        onSaveToNotes: (note) async {
+          try {
+            final current = _workspace.data?.applicationById(application.id);
+            final notes = current?.notes ?? application.notes;
+            final updated = await widget.applications.updateNotes(
+              application.id,
+              notes == null || notes.trim().isEmpty ? note : '$notes\n\n$note',
+            );
+            _workspace.replaceApplication(updated);
+            return null;
+          } catch (error) {
+            return friendlyErrorMessage(error);
+          }
+        },
       ),
     );
   }
@@ -1040,6 +1090,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onInterviewPrep: _openInterviewPrep,
         onWriteMessage: _writeMessage,
         onAtsCheck: (a) => _openAts(_contextForApplication(a)),
+        onNegotiate: _negotiate,
+        researcher: _companyResearcher,
         events: widget.events,
         onApply: (a) => _startApply(
           job: _contextForApplication(a),

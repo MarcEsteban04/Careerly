@@ -3,13 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/bottom_action_bar.dart';
 import '../../../core/utils/error_message.dart';
+import '../../../core/widgets/bottom_action_bar.dart';
 import '../../../core/widgets/circle_icon_button.dart';
 import '../../../core/widgets/hero_header.dart';
 import '../../../core/widgets/hero_top_bar.dart';
-import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../../core/widgets/primary_button.dart';
+import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../../core/widgets/segmented_tabs.dart';
 import '../../documents/data/career_document.dart';
 import '../../documents/data/document_markup.dart';

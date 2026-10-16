@@ -5,15 +5,18 @@ import 'package:http/testing.dart';
 
 import 'package:careerly/core/ai/ai_chain.dart';
 import 'package:careerly/features/applications/data/job_application.dart';
+import 'package:careerly/features/company_research/data/company_researcher.dart';
 import 'package:careerly/features/interview_prep/data/interview_coach.dart';
 import 'package:careerly/features/job_import/data/job_post_reader.dart';
 import 'package:careerly/features/messages/data/message_writer.dart';
+import 'package:careerly/features/negotiation/data/negotiation_coach.dart';
 import 'package:careerly/features/notifications/data/notifications.dart';
 import 'package:careerly/features/profile/data/career_profile.dart';
 import 'package:careerly/features/studio/data/career_writer.dart';
 
 import '../../core/ai/fake_ai_provider.dart';
 import '../interview_prep/interview_prep_fixtures.dart';
+import '../negotiation/negotiation_coach_test.dart' show planReply;
 import 'shell_test_utils.dart';
 
 /// Get started, reminders, notification taps and interview prep, wired
@@ -387,6 +390,76 @@ void main() {
       expect(find.text('Email'), findsOneWidget);
       expect(ai.requests.single.prompt, contains('Senior UI Designer at Canva'));
       expect(ai.requests.single.prompt, contains('Marc Esteban'));
+    });
+  });
+
+  group('offers and employers', () {
+    Future<FakeApplicationsRepository> pumpWithOffer(
+      WidgetTester tester, {
+      NegotiationCoach? negotiationCoach,
+      CompanyResearcher? companyResearcher,
+    }) async {
+      final sample = sampleDashboardData(DateTime.now());
+      final applications = FakeApplicationsRepository(sample.applications);
+      await pumpShell(
+        tester,
+        applications: applications,
+        agenda: FakeAgendaRepository(sample.agenda),
+        negotiationCoach: negotiationCoach,
+        companyResearcher: companyResearcher,
+      );
+      // Design Engineer at Figma is at the offer stage.
+      await tapVisible(tester, find.text('Design Engineer'));
+      return applications;
+    }
+
+    testWidgets('negotiates an offer and saves the plan to notes', (
+      tester,
+    ) async {
+      final ai = FakeAiProvider('Gemini', reply: planReply);
+      final applications = await pumpWithOffer(
+        tester,
+        negotiationCoach: NegotiationCoach(AiChain([ai])),
+      );
+
+      await tapVisible(tester, find.text('Negotiate your offer'));
+      // The offer comes from the tracked salary.
+      expect(find.text(r'$6,500/month'), findsOneWidget);
+      await tester.tap(find.text('Build my plan'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('₱52,000 a month'), findsOneWidget);
+      expect(find.text('Talking points'), findsOneWidget);
+      expect(ai.requests.single.prompt, contains(r'$6,500/month'));
+      expect(ai.requests.single.prompt, contains('Design Engineer at Figma'));
+
+      await tapVisible(tester, find.text('Save plan to notes'));
+      expect(applications.notes['a3'], contains('Counter: ₱52,000 a month'));
+      expect(find.text('Saved to notes'), findsOneWidget);
+    });
+
+    testWidgets('researches the employer from a tracked job', (tester) async {
+      final ai = FakeAiProvider(
+        'Gemini',
+        reply: '{"summary": "Figma makes a collaborative design tool.", '
+            '"facts": ["Industry: Design software"], '
+            '"good_signs": ["Well-known product"], '
+            '"watch_outs": ["Remote roles are competitive"], '
+            '"questions_to_ask": ["How do designers and engineers pair?"]}',
+      );
+      await pumpWithOffer(
+        tester,
+        companyResearcher: CompanyResearcher(AiChain([ai])),
+      );
+
+      expect(find.text('About Figma'), findsOneWidget);
+      await tapVisible(tester, find.text('Research this company'));
+
+      expect(find.text('Figma makes a collaborative design tool.'), findsOneWidget);
+      expect(find.text('Industry: Design software'), findsOneWidget);
+      expect(find.text('Worth checking'), findsOneWidget);
+      expect(ai.requests.single.webSearch, isTrue);
+      expect(find.byTooltip('Refresh research'), findsOneWidget);
     });
   });
 }

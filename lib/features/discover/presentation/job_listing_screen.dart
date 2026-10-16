@@ -3,8 +3,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/app_accents.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/bottom_action_bar.dart';
 import '../../../core/utils/date_utils.dart';
+import '../../../core/widgets/bottom_action_bar.dart';
 import '../../../core/widgets/circle_icon_button.dart';
 import '../../../core/widgets/hero_header.dart';
 import '../../../core/widgets/hero_top_bar.dart';
@@ -12,6 +12,9 @@ import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/scroll_aware_status_bar.dart';
 import '../../../core/widgets/segmented_tabs.dart';
 import '../../../core/widgets/tag_pill.dart';
+import '../../company_research/data/company_researcher.dart';
+import '../../company_research/presentation/company_research_card.dart';
+import '../../studio/data/career_writer.dart';
 import '../data/discover_controller.dart';
 import '../data/job_listing.dart';
 import '../data/job_matcher.dart';
@@ -32,8 +35,16 @@ class JobListingScreen extends StatefulWidget {
     required this.onApply,
     required this.onNotInterested,
     required this.onAtsCheck,
+    required this.researcher,
+    required this.jobContext,
     this.profileYears,
   });
+
+  /// Looks the employer up for the company card.
+  final CompanyResearcher researcher;
+
+  /// The job as the AI tools see it.
+  final JobContext jobContext;
 
   /// Checks her resume against this job.
   final VoidCallback onAtsCheck;
@@ -131,7 +142,17 @@ class _JobListingScreenState extends State<JobListingScreen> {
                     child: KeyedSubtree(
                       key: ValueKey(_tab),
                       child: switch (_tab) {
-                        0 => _buildDescription(theme),
+                        0 => Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildDescription(theme),
+                              const SizedBox(height: AppSpacing.lg),
+                              CompanyResearchCard(
+                                researcher: widget.researcher,
+                                job: widget.jobContext,
+                              ),
+                            ],
+                          ),
                         1 => _buildRequirements(theme),
                         _ => _buildMatch(theme),
                       },
