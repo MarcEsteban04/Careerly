@@ -85,7 +85,7 @@ class LocalNotifications implements Notifications {
           category: channel == NotificationChannel.reminders
               ? AndroidNotificationCategory.reminder
               : AndroidNotificationCategory.recommendation,
-          color: const Color(0xFF2563EB),
+          color: const Color(0xFF26808C),
           styleInformation: const BigTextStyleInformation(''),
         ),
         iOS: const DarwinNotificationDetails(),

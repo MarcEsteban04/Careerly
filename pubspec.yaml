@@ -67,14 +67,14 @@ flutter_launcher_icons:
 
 # Launch screen: `dart run flutter_native_splash:create`.
 flutter_native_splash:
-  color: "#EEF3FF"
-  color_dark: "#0B0C10"
+  color: "#F5F6F7"
+  color_dark: "#111315"
   image: assets/icons/careerly_logo.png
   android_12:
     image: assets/branding/splash_icon.png
-    icon_background_color: "#2747D4"
-    color: "#EEF3FF"
+    icon_background_color: "#202326"
+    color: "#F5F6F7"
     image_dark: assets/branding/splash_icon.png
-    icon_background_color_dark: "#2747D4"
-    color_dark: "#0B0C10"
+    icon_background_color_dark: "#202326"
+    color_dark: "#111315"
   web: false
