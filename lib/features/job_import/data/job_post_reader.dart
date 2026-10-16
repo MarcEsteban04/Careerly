@@ -17,6 +17,7 @@ class JobPostDraft {
     this.description,
     this.url,
     this.source,
+    this.notice,
   });
 
   final String? role;
@@ -31,6 +32,9 @@ class JobPostDraft {
   /// Where it was posted, e.g. "LinkedIn".
   final String? source;
 
+  /// Something to tell her when reviewing, e.g. that a detail was hidden.
+  final String? notice;
+
   bool get hasBasics => (role ?? '').isNotEmpty && (company ?? '').isNotEmpty;
 
   /// Fills gaps in this draft from [other].
@@ -42,6 +46,7 @@ class JobPostDraft {
         description: _pick(description, other.description),
         url: _pick(url, other.url),
         source: _pick(source, other.source),
+        notice: _pick(notice, other.notice),
       );
 
   static String? _pick(String? a, String? b) =>
@@ -81,6 +86,11 @@ class JobPostReader {
     if (url != null) {
       try {
         final html = await _fetch(url);
+        // OnlineJobs.ph has no structured data, but a steady layout.
+        if (source == 'OnlineJobs.ph') {
+          final page = fromOnlineJobs(html);
+          if (page != null) return page.merge(draft);
+        }
         final structured = fromJsonLd(html);
         if (structured != null) {
           draft = structured.merge(draft);
@@ -167,6 +177,89 @@ Return JSON: {"is_job": true|false, "role": "", "company": "", "location": "<cit
       if (host.contains(entry.key)) return entry.value;
     }
     return host.replaceFirst('www.', '');
+  }
+
+  /// Reads an OnlineJobs.ph job page. The employer's name is hidden from
+  /// guests, so a placeholder stands in until she fills it in. Null when
+  /// the page doesn't look like a job post.
+  @visibleForTesting
+  static JobPostDraft? fromOnlineJobs(String html) {
+    final heading = RegExp(
+      r'<h1[^>]*job__title[^>]*>([\s\S]*?)</h1>',
+      caseSensitive: false,
+    ).firstMatch(html);
+    final pageTitle = RegExp(
+      r'<title>([\s\S]*?)</title>',
+      caseSensitive: false,
+    ).firstMatch(html);
+    final role = heading != null
+        ? visibleText(heading.group(1)!)
+        : pageTitle == null
+        ? ''
+        : visibleText(pageTitle.group(1)!)
+              .replaceAll(RegExp(r'\s*\d*\s*-\s*OnlineJobs\.ph\s*$'), '');
+
+    final lines = [
+      for (final line in visibleText(html).split('\n'))
+        if (line.trim().isNotEmpty) line.trim(),
+    ];
+    String? after(String label) {
+      final i = lines.indexWhere((l) => l.toUpperCase() == label);
+      return i == -1 || i + 1 >= lines.length ? null : lines[i + 1];
+    }
+
+    List<String> between(String start, List<String> ends) {
+      final from = lines.indexWhere((l) => l.toUpperCase() == start);
+      if (from == -1) return const [];
+      var to = lines.length;
+      for (var i = from + 1; i < lines.length; i++) {
+        if (ends.contains(lines[i].toUpperCase())) {
+          to = i;
+          break;
+        }
+      }
+      return lines.sublist(from + 1, to);
+    }
+
+    final overview = between('JOB OVERVIEW', const [
+      'SKILL REQUIREMENT',
+      'VIEW OTHER JOB POSTS FROM:',
+    ]);
+    if (role.isEmpty || overview.isEmpty) return null;
+    final skills = between('SKILL REQUIREMENT', const [
+      'VIEW OTHER JOB POSTS FROM:',
+      'SHARE THIS POST',
+    ]);
+    final type = after('TYPE OF WORK');
+    final hours = after('HOURS PER WEEK');
+    final updated = after('DATE UPDATED');
+    final wage = after('WAGE / SALARY');
+
+    final facts = [
+      ?type,
+      if (hours != null && hours != '0') '$hours hours/week',
+      if (updated != null) 'Updated $updated',
+    ].join(' · ');
+    final description = [
+      if (facts.isNotEmpty) facts,
+      // Before the overview, so trimming a long post keeps them.
+      if (skills.isNotEmpty) 'Skills: ${skills.join(', ')}',
+      overview.join('\n'),
+    ].join('\n\n');
+
+    return JobPostDraft(
+      role: role,
+      company: 'Employer on OnlineJobs.ph',
+      // Every OnlineJobs.ph job is remote work for Filipinos.
+      location: 'Remote',
+      salary: wage == null || wage.toLowerCase() == 'tbd' ? null : wage,
+      description: _clip(description, 3000),
+      source: 'OnlineJobs.ph',
+      notice:
+          "OnlineJobs.ph only shows the employer's name when you're "
+          'logged in. Change it if you know it, and check the wage '
+          "currency (it's often USD).",
+    );
   }
 
   /// Reads a schema.org JobPosting from the page's JSON-LD, which most job

@@ -30,7 +30,7 @@ Future<QuickAddAction?> showQuickAddSheet(BuildContext context) {
               icon: Icons.link_rounded,
               accent: Accent.blue,
               title: 'Job from a link',
-              subtitle: 'Paste a LinkedIn, JobStreet or Indeed link',
+              subtitle: 'Paste a LinkedIn, JobStreet or OnlineJobs.ph link',
             ),
             _Option(
               action: QuickAddAction.application,

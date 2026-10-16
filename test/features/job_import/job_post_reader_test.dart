@@ -19,6 +19,21 @@ const _jobPage = '''
 }]}</script>
 </head><body>Apply now</body></html>''';
 
+const _onlineJobsPage = '''
+<html><head><title>Virtual Assistant 1700001 - OnlineJobs.ph</title></head><body>
+<nav><a>find jobs</a><a>log in</a></nav>
+<p>Please login or register as jobseeker to apply for this job.</p>
+<h1 class="fs-24 job__title" data-jobid="1700001">Virtual Assistant</h1>
+<div><h3>TYPE OF WORK</h3><p>Part Time</p></div>
+<div><h3>WAGE / SALARY</h3><p>PHP 25,000/month</p></div>
+<div><h3>HOURS PER WEEK</h3><p>20</p></div>
+<div><h3>DATE UPDATED</h3><p>Oct 16, 2026</p></div>
+<div><h3>JOB OVERVIEW</h3><p>Manage the inbox and calendar.</p><p>Reply to customers within a day.</p></div>
+<div><h3>SKILL REQUIREMENT</h3><span>Email Management</span><br><span>Customer Service</span></div>
+<div><h3>VIEW OTHER JOB POSTS FROM:</h3></div>
+<footer><p>Employers</p><p>Job Search</p></footer>
+</body></html>''';
+
 void main() {
   test('reads the JobPosting data a job board publishes, without AI', () async {
     final ai = FakeAiProvider('Gemini');
@@ -82,6 +97,31 @@ void main() {
     );
 
     expect(() => reader.read('happy birthday!'), throwsA(isA<NotAJobException>()));
+  });
+
+  test('reads OnlineJobs.ph pages without AI', () async {
+    final ai = FakeAiProvider('Gemini');
+    final reader = JobPostReader(
+      AiChain([ai]),
+      httpClient: MockClient((_) async => http.Response(_onlineJobsPage, 200)),
+    );
+
+    final draft = await reader.read(
+      'https://www.onlinejobs.ph/jobseekers/job/virtual-assistant-1700001',
+    );
+
+    expect(draft.role, 'Virtual Assistant');
+    // Hidden from guests: a placeholder, and a note saying so.
+    expect(draft.company, 'Employer on OnlineJobs.ph');
+    expect(draft.notice, contains('employer'));
+    expect(draft.location, 'Remote');
+    expect(draft.salary, 'PHP 25,000/month');
+    expect(draft.description, startsWith('Part Time · 20 hours/week · Updated Oct 16, 2026'));
+    expect(draft.description, contains('Skills: Email Management, Customer Service'));
+    expect(draft.description, contains('Reply to customers within a day.'));
+    expect(draft.description, isNot(contains('Employers')));
+    expect(draft.source, 'OnlineJobs.ph');
+    expect(ai.requests, isEmpty);
   });
 
   test('finds links and names sources', () {

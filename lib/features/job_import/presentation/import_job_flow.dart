@@ -39,9 +39,10 @@ Future<JobApplication?> importSharedJob(
           source: draft.source,
           jobDescription: draft.description,
         ),
-        draft.hasBasics
-            ? null
-            : 'Some details were missing from the post. Fill in the rest.',
+        draft.notice ??
+            (draft.hasBasics
+                ? null
+                : 'Some details were missing from the post. Fill in the rest.'),
       ),
     _Failed(:final error) => (
         fallback,
@@ -197,7 +198,7 @@ class _PasteDialogState extends State<_PasteDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Paste a link from LinkedIn, JobStreet, Indeed or anywhere else, '
+            'Paste a link from LinkedIn, JobStreet, OnlineJobs.ph or anywhere else, '
             'or paste the post itself.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
